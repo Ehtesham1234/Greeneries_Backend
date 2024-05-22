@@ -10,8 +10,8 @@ const UserSchema = new Schema(
     shop: { type: ObjectId, ref: "Shop" },
     buyer: { type: ObjectId, ref: "Buyer" },
     userName: { type: String },
-    email: { type: String, trim: true },
-    phoneNumber: { type: String, trim: true },
+    email: { type: String, trim: true, default: null },
+    phoneNumber: { type: String, trim: true, default: null },
     password: { type: String, required: true },
     otpVerificationCode: { type: String, default: null },
     otpCodeExpiration: {

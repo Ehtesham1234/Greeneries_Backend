@@ -36,7 +36,7 @@ exports.userRegistration = asyncHandler(async (req, res, nex) => {
     throw new ApiError(400, "Validation Error", errors.array());
   }
   const { userName, phoneNumber, email, password } = req.body;
-
+  console.log("req.body", req.body);
   if (!userName) {
     return res.json({
       error: "name is required",
@@ -84,13 +84,22 @@ exports.userRegistration = asyncHandler(async (req, res, nex) => {
 
       // Send OTP for verification
       sendOtp(phoneNumber || email, otp);
+      const createdUser = await User.findById(existingUser._id).select(
+        "-password -refreshToken"
+      );
 
+      if (!createdUser) {
+        throw new ApiError(
+          500,
+          "Something went wrong while registering the user"
+        );
+      }
       return res
         .status(200)
         .json(
           new ApiResponse(
             200,
-            { user: existingUser },
+            { user: createdUser },
             "User not verified OTP sent for verification"
           )
         );
@@ -132,7 +141,18 @@ exports.userRegistration = asyncHandler(async (req, res, nex) => {
 
   // Send OTP for verification
   sendOtp(phoneNumber || email, otp);
-  res.status(200).json(new ApiResponse(200, user, "OTP sent for verification"));
+  const createdUser = await User.findById(user._id).select(
+    "-password -refreshToken"
+  );
+
+  if (!createdUser) {
+    throw new ApiError(500, "Something went wrong while registering the user");
+  }
+  res
+    .status(200)
+    .json(
+      new ApiResponse(200, { user: createdUser }, "OTP sent for verification")
+    );
 });
 
 exports.userVerification = asyncHandler(async (req, res, next) => {
@@ -217,13 +237,22 @@ exports.userSignIn = asyncHandler(async (req, res, nex) => {
 
     // Send OTP for verification
     sendOtp(phoneNumber || email, otp);
+    const createdUser = await User.findById(user._id).select(
+      "-password -refreshToken"
+    );
 
+    if (!createdUser) {
+      throw new ApiError(
+        500,
+        "Something went wrong while registering the user"
+      );
+    }
     return res
       .status(201)
       .json(
         new ApiResponse(
           200,
-          user,
+          { user: createdUser },
           "User not verified OTP sent for verification"
         )
       );
