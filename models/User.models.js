@@ -25,6 +25,9 @@ const UserSchema = new Schema(
     refreshToken: {
       type: String,
     },
+    googleId: { type: String, unique: true, sparse: true },
+    githubId: { type: String, unique: true, sparse: true },
+    facebookId: { type: String, unique: true, sparse: true },
   },
   { timestamps: true }
 );
