@@ -23,4 +23,4 @@ const statehScrema = new mongoose.Schema(
   { timeStamps: true }
 );
 
-exports.State = mongoose.model("State", statehScrema);
+module.exports = mongoose.model("State", statehScrema);

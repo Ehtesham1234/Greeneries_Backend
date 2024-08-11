@@ -3,12 +3,13 @@ const nodemailer = require("nodemailer");
 const jwt = require("jsonwebtoken");
 const secretOrKey = process.env.JWT_SECRET_KEY;
 // const User = require("../Models/User");
-const UserType = require("../Models/UserTypeMaster");
-const _ = require("lodash");
+// const UserType = require("../Models/UserTypeMaster");
+// const _ = require("lodash");
 require("dotenv").config();
-const json2csv = require("json2csv");
+// const { ApiError } = require("../utils/ApiError");
+// const json2csv = require("json2csv");
 const fs = require("fs");
-const { Parser } = require("json2csv");
+// const { Parser } = require("json2csv");
 /*random otp genrate*/
 exports.genOTP = () => {
   var digits = 6;
@@ -280,6 +281,24 @@ exports.adminTokenValidate = async (token) => {
 exports.downloadResource = (fields, data) => {
   const json2csv = new Parser({ fields });
   return json2csv.parse(data);
+};
+
+exports.generateAccessAndRefereshTokens = async (userId) => {
+  try {
+    const user = await User.findById(userId);
+    const accessToken = user.generateAccessToken();
+    const refreshToken = user.generateRefreshToken();
+
+    user.refreshToken = refreshToken;
+    await user.save({ validateBeforeSave: false });
+
+    return { accessToken, refreshToken };
+  } catch (error) {
+    throw new ApiError(
+      500,
+      "Something went wrong while generating referesh and access token"
+    );
+  }
 };
 
 // exports.isUser = async (req, res, next) => {

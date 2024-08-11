@@ -1,46 +1,37 @@
 const passport = require("passport");
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
-const GitHubStrategy = require("passport-github2").Strategy;
-const FacebookStrategy = require("passport-facebook").Strategy;
 const mongoose = require("mongoose");
 const User = require("../models/User.models");
 
-
-passport.serializeUser((user, done) => {
-  done(null, user.id);
-});
-
-passport.deserializeUser(async (id, done) => {
-  try {
-    const user = await User.findById(id);
-    done(null, user);
-  } catch (err) {
-    done(err, null);
-  }
-});
-
 const oauthCallback = async (accessToken, refreshToken, profile, done) => {
   try {
+    console.log("OAuth Callback triggered with profile:", profile);
     const existingUser = await User.findOne({
       oauthId: profile.id,
-      provider: profile.provider,
+      // provider: profile.provider,
     });
 
     if (existingUser) {
+      console.log("User already exists:", existingUser);
       return done(null, existingUser);
     }
-
+    console.log("Creating new user...");
     const newUser = new User({
       oauthId: profile.id,
-      provider: profile.provider,
+      // provider: profile.provider,
       userName: profile.displayName || profile.username,
       email: profile.emails[0].value,
       isEmailVerified: true,
+      isLoggedIn: true,
+      refreshToken,
     });
 
     await newUser.save();
+    console.log("New user created:", newUser);
     done(null, newUser);
   } catch (err) {
+    console.error("Error in OAuth callback:", err);
+
     done(err, null);
   }
 };
@@ -50,31 +41,26 @@ passport.use(
     {
       clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL: "/auth/google/callback",
+      callbackURL: "http://localhost:4000/google/auth/google/callback",
     },
     oauthCallback
   )
 );
 
-passport.use(
-  new GitHubStrategy(
-    {
-      clientID: process.env.GITHUB_CLIENT_ID,
-      clientSecret: process.env.GITHUB_CLIENT_SECRET,
-      callbackURL: "/auth/github/callback",
-    },
-    oauthCallback
-  )
-);
+passport.serializeUser((user, done) => {
+  console.log("Serializing user:", user.id);
+  done(null, user.id);
+});
 
-passport.use(
-  new FacebookStrategy(
-    {
-      clientID: process.env.FACEBOOK_CLIENT_ID,
-      clientSecret: process.env.FACEBOOK_CLIENT_SECRET,
-      callbackURL: "/auth/facebook/callback",
-      profileFields: ["id", "displayName", "email"],
-    },
-    oauthCallback
-  )
-);
+passport.deserializeUser(async (id, done) => {
+  try {
+    console.log("Deserializing user by ID:", id);
+    const user = await User.findById(id);
+    done(null, user);
+  } catch (err) {
+    console.error("Error deserializing user:", err);
+    done(err, null);
+  }
+});
+
+module.exports = passport;

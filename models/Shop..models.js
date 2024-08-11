@@ -21,4 +21,4 @@ const ShopSchema = new Schema(
 );
 // Ensure the location field is indexed as '2dsphere' for geospatial queries
 ShopSchema.index({ location: "2dsphere" });
-exports.Shop = mongoose.model("Shop", ShopSchema);
+module.exports = mongoose.model("Shop", ShopSchema);

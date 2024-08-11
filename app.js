@@ -9,12 +9,17 @@ const shopRoute = require("./routes/shop/shopRoutes");
 const superAdminRoute = require("./routes/Users/superAdminRoutes");
 const roleRoute = require("./routes/roles/rolesRoute");
 const productRoutes = require("./routes/product/productRoutes");
-const { Role } = require("./models/roles/roles.models");
-const { City } = require("./models/City.model");
-const { State } = require("./models/State.model");
+const oAuthRoutes = require("./routes/Users/oAuthRoutes");
+const  Role  = require("./models/roles/roles.models");
+const  City  = require("./models/City.model");
+const  State  = require("./models/State.model");
 const cityArray = require("./utils/city");
 const stateArray = require("./utils/state");
 const cors = require("cors");
+const path = require("path");
+const { dirname } = require("path");
+const passport = require("passport");
+const { engine } = require("express-handlebars");
 const cookieParser = require("cookie-parser");
 const { ApiError } = require("./utils/ApiError");
 connectDB();
@@ -26,7 +31,7 @@ const roles = [
   { id: 2, name: "admin" },
   { id: 3, name: "user" },
 ];
-
+console.log(Role);
 Role.countDocuments({})
   .exec()
   .then((count) => {
@@ -132,6 +137,25 @@ app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(morgan("dev"));
+app.use(express.static("public"));
+
+app.use(
+  session({
+    secret: "your_secret_key",
+    resave: false,
+    saveUninitialized: true,
+  })
+);
+app.use(passport.initialize());
+app.use(passport.session());
+
+// app.use(passport.initialize());
+// app.use(passport.session());
+// Configure Express Handlebars
+app.engine("handlebars", engine());
+app.set("view engine", "handlebars");
+// Set views directory
+app.set("views", path.join(__dirname, "views"));
 app.use(
   session({
     secret: "your_secret_key",
@@ -147,6 +171,7 @@ app.use("/api", superAdminRoute.router);
 app.use("/api", shopRoute.router);
 app.use("/api/roles", roleRoute.router);
 app.use("/api", productRoutes.router);
+app.use("/google", oAuthRoutes.router);
 //Roles
 
 app.use((req, res, next) => {
@@ -168,14 +193,6 @@ app.use((err, req, res, next) => {
     });
   }
 });
-
-// app.use((err, req, res, next) => {
-//   res.status(err.status || 500);
-//   res.send({
-//     status: err.status || 500,
-//     message: err.message,
-//   });
-// });
 
 const PORT = process.env.PORT || 8000;
 app.listen(PORT, () => console.log(`🚀 @ http://localhost:${PORT}`));

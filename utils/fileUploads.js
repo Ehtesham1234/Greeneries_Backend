@@ -25,11 +25,13 @@ const sendOtp = async (identifier, otp) => {
   if (identifier?.includes("@")) {
     // Create a transporter
     let transporter = nodemailer.createTransport({
-      host: "smtp.ethereal.email", // replace with your email provider
-      port: 587,
+      service: "gmail",
+      // host: "smtp.ethereal.email",
+      port: 465,
+      secure: false,
       auth: {
-        user: "leonie66@ethereal.email",
-        pass: "uTbDvuPfhvkN91k8AW",
+        user: "tiadsforme@gmail.com",
+        pass: "jkhgvpxcarwuianv",
       },
     });
 

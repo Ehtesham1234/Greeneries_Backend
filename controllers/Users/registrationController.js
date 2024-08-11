@@ -1,8 +1,8 @@
-const { User } = require("../../models/User.models");
+const User = require("../../models/User.models");
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 const { validationResult } = require("express-validator");
-const { Role } = require("../../models/roles/roles.models");
+const Role = require("../../models/roles/roles.models");
 const jwt = require("jsonwebtoken");
 const { sendOtp } = require("../../utils/fileUploads");
 const { asyncHandler } = require("../../utils/asyncHandler");
@@ -185,12 +185,32 @@ exports.userVerification = asyncHandler(async (req, res, next) => {
   } else if (phoneNumber) {
     user.isPhoneVerified = true;
   }
+
+  const { accessToken, refreshToken } = await generateAccessAndRefereshTokens(
+    user._id
+  );
+
+  user.isLoggedIn = true;
   user.otpCodeExpiration = null;
   user.otpVerificationCode = null;
+  user.refreshToken = refreshToken;
   await user.save();
-  res
-    .status(201)
-    .json(new ApiResponse(200, user, "User verified successfully"));
+
+  const createdUser = await User.findById(user._id).select(
+    "-password -refreshToken"
+  );
+
+  res.status(201).json(
+    new ApiResponse(
+      200,
+      {
+        user: createdUser,
+        token: accessToken,
+        refreshToken,
+      },
+      "User verified and logged in successfully "
+    )
+  );
 });
 
 // sign In
@@ -233,10 +253,12 @@ exports.userSignIn = asyncHandler(async (req, res, nex) => {
     } else if (phoneNumber) {
       user.isPhoneVerified = false;
     }
+
     await user.save();
 
     // Send OTP for verification
     sendOtp(phoneNumber || email, otp);
+
     const createdUser = await User.findById(user._id).select(
       "-password -refreshToken"
     );
@@ -247,6 +269,7 @@ exports.userSignIn = asyncHandler(async (req, res, nex) => {
         "Something went wrong while registering the user"
       );
     }
+
     return res
       .status(201)
       .json(
@@ -276,29 +299,9 @@ exports.userSignIn = asyncHandler(async (req, res, nex) => {
     secure: true,
   };
 
-  // Check password
-  // const isMatch = await bcrypt.compare(password, user.password);
-  // if (!isMatch) {
-  //   throw new ApiError(400, "Invalid password");
-  // }
-  // User is logged in successfully
-  // const payload = { userId: user._id };
-  // const token = jwt.sign(payload, process.env.JWT_SECRET);
-
+  user.refreshToken = refreshToken;
   user.isLoggedIn = true;
   await user.save();
-
-  // let userWithoutPassword = {
-  //   _id: user._id,
-  //   userName: user.userName,
-  //   email: user.email,
-  //   phoneNumber: user.phoneNumber,
-  //   isEmailVerified: user.isEmailVerified,
-  //   isPhoneVerified: user.isPhoneVerified,
-  //   userId: user.userId,
-  //   role: user.role,
-  //   isActive: user.isActive,
-  // };
 
   return res
     .status(200)
@@ -315,19 +318,6 @@ exports.userSignIn = asyncHandler(async (req, res, nex) => {
         "User logged In Successfully"
       )
     );
-
-  // res.cookie("token", token, {
-  //   httpOnly: true,
-  // });
-  // return res
-  //   .status(201)
-  //   .json(
-  //     new ApiResponse(
-  //       200,
-  //       { data: userWithoutPassword, token: token },
-  //       "success"
-  //     )
-  //   );
 });
 
 exports.logoutUser = asyncHandler(async (req, res) => {
@@ -355,6 +345,23 @@ exports.logoutUser = asyncHandler(async (req, res) => {
     .clearCookie("refreshToken", options)
     .json(new ApiResponse(200, {}, "User logged Out"));
 });
+exports.validateToken = asyncHandler(async (req, res) => {
+  const token = req.body.token || req.cookies.token;
+  if (!token) {
+    return res.status(403).send("A token is required for authentication");
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+    const user = await User.findById(decoded._id);
+    if (!user) {
+      return res.status(401).send("Invalid token");
+    }
+    return res.status(200).json({ valid: true });
+  } catch (err) {
+    return res.status(401).send("Invalid token");
+  }
+});
 
 exports.refreshAccessToken = asyncHandler(async (req, res) => {
   const incomingRefreshToken =
@@ -375,6 +382,7 @@ exports.refreshAccessToken = asyncHandler(async (req, res) => {
     if (!user) {
       throw new ApiError(401, "Invalid refresh token");
     }
+    console.log("user?.refreshToken".user);
 
     if (incomingRefreshToken !== user?.refreshToken) {
       throw new ApiError(401, "Refresh token is expired or used");
@@ -385,17 +393,24 @@ exports.refreshAccessToken = asyncHandler(async (req, res) => {
       secure: true,
     };
 
-    const { accessToken, newRefreshToken } =
-      await generateAccessAndRefereshTokens(user._id);
-
+    const { accessToken, refreshToken } = await generateAccessAndRefereshTokens(
+      user._id
+    );
+    // console.log("accessToken, refreshToken", {
+    //   accessToken,
+    //   refreshToken,
+    // });
+    user.isLoggedIn = true;
+    user.refreshToken = refreshToken;
+    await user.save();
     return res
       .status(200)
       .cookie("accessToken", { token: accessToken }, options)
-      .cookie("refreshToken", newRefreshToken, options)
+      .cookie("refreshToken", refreshToken, options)
       .json(
         new ApiResponse(
           200,
-          { token: accessToken, refreshToken: newRefreshToken },
+          { token: accessToken, refreshToken: refreshToken },
           "Access token refreshed"
         )
       );

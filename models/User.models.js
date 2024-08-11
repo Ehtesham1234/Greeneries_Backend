@@ -12,7 +12,8 @@ const UserSchema = new Schema(
     userName: { type: String },
     email: { type: String, trim: true, default: null },
     phoneNumber: { type: String, trim: true, default: null },
-    password: { type: String, required: true },
+    password: { type: String },
+    avatar: { type: String },
     otpVerificationCode: { type: String, default: null },
     otpCodeExpiration: {
       type: Date,
@@ -25,9 +26,7 @@ const UserSchema = new Schema(
     refreshToken: {
       type: String,
     },
-    googleId: { type: String, unique: true, sparse: true },
-    githubId: { type: String, unique: true, sparse: true },
-    facebookId: { type: String, unique: true, sparse: true },
+    oauthId: { type: String, unique: true, sparse: true },
   },
   { timestamps: true }
 );
@@ -69,4 +68,4 @@ UserSchema.methods.generateRefreshToken = function () {
   );
 };
 
-exports.User = mongoose.model("User", UserSchema);
+module.exports = mongoose.model("User", UserSchema);

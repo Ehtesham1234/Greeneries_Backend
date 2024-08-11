@@ -25,4 +25,4 @@ const cityhScrema = new mongoose.Schema(
   { timeStamps: true }
 );
 
-exports.City = mongoose.model("City", cityhScrema);
+module.exports = mongoose.model("City", cityhScrema);
