@@ -8,7 +8,6 @@ const oauthCallback = async (accessToken, refreshToken, profile, done) => {
     console.log("OAuth Callback triggered with profile:", profile);
     const existingUser = await User.findOne({
       oauthId: profile.id,
-      // provider: profile.provider,
     });
 
     if (existingUser) {
@@ -23,6 +22,7 @@ const oauthCallback = async (accessToken, refreshToken, profile, done) => {
       email: profile.emails[0].value,
       isEmailVerified: true,
       isLoggedIn: true,
+      photo: profile.photos[0].value,
       refreshToken,
     });
 

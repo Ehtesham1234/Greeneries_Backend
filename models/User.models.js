@@ -13,7 +13,7 @@ const UserSchema = new Schema(
     email: { type: String, trim: true, default: null },
     phoneNumber: { type: String, trim: true, default: null },
     password: { type: String },
-    avatar: { type: String },
+    photo: { type: String },
     otpVerificationCode: { type: String, default: null },
     otpCodeExpiration: {
       type: Date,

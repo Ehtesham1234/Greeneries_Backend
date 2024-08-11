@@ -299,9 +299,9 @@ exports.userSignIn = asyncHandler(async (req, res, nex) => {
     secure: true,
   };
 
-  user.refreshToken = refreshToken;
-  user.isLoggedIn = true;
-  await user.save();
+  loggedInUser.refreshToken = refreshToken;
+  loggedInUser.isLoggedIn = true;
+  await loggedInUser.save();
 
   return res
     .status(200)
@@ -382,7 +382,7 @@ exports.refreshAccessToken = asyncHandler(async (req, res) => {
     if (!user) {
       throw new ApiError(401, "Invalid refresh token");
     }
-    console.log("user?.refreshToken".user);
+    console.log("user?.refreshToken", user?.refreshToken);
 
     if (incomingRefreshToken !== user?.refreshToken) {
       throw new ApiError(401, "Refresh token is expired or used");
@@ -392,14 +392,17 @@ exports.refreshAccessToken = asyncHandler(async (req, res) => {
       httpOnly: true,
       secure: true,
     };
+    console.log(process.env.REFRESH_TOKEN_SECRET);
+    console.log(process.env.ACCESS_TOKEN_SECRET);
+    console.log("incomingRefreshToken", incomingRefreshToken);
 
     const { accessToken, refreshToken } = await generateAccessAndRefereshTokens(
       user._id
     );
-    // console.log("accessToken, refreshToken", {
-    //   accessToken,
-    //   refreshToken,
-    // });
+    console.log("accessToken, refreshToken", {
+      accessToken,
+      refreshToken,
+    });
     user.isLoggedIn = true;
     user.refreshToken = refreshToken;
     await user.save();

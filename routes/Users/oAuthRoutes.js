@@ -66,12 +66,7 @@ router.get(
         success: true,
         accessToken,
         refreshToken,
-        user: {
-          id: req.user._id,
-          name: req.user.name,
-          email: req.user.email,
-          avatar: req.user.avatar, // Assuming you store the user's avatar URL
-        },
+        user:req.user,
       });
     } catch (error) {
       console.error("Error during OAuth callback:", error);
