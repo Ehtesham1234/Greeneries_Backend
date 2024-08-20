@@ -2,8 +2,31 @@ const User = require("../../models/User.models");
 const bcrypt = require("bcryptjs");
 const { validationResult } = require("express-validator");
 const Role = require("../../models/roles/roles.models");
-
+const NodeGeocoder = require("node-geocoder");
 const jwt = require("jsonwebtoken");
+// const geocoder = NodeGeocoder({
+//   provider: "openstreetmap",
+// });
+
+
+// exports.getShops = asyncHandler(async (req, res) => {
+//   const userLocation = req.query.location;
+//   const geoResponse = await geocoder.geocode(userLocation);
+//   const { latitude, longitude } = geoResponse[0];
+
+//   const shops = await Shop.find({
+//     location: {
+//       $near: {
+//         $geometry: {
+//           type: "Point",
+//           coordinates: [longitude, latitude],
+//         },
+//       },
+//     },
+//   });
+
+//   res.json(shops);
+// });
 
 exports.userRegistration = async (req, res, nex) => {
   const errors = validationResult(req);

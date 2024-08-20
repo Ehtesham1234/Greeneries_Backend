@@ -12,6 +12,7 @@
   "license": "MIT",
   "dependencies": {
     "bcryptjs": "^2.4.3",
+    "cloudinary": "^2.4.0",
     "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",
     "crypto": "^1.0.1",
@@ -30,7 +31,8 @@
     "nodemailer-express-handlebars": "^6.1.2",
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
-    "twilio": "^4.20.0"
+    "twilio": "^4.20.0",
+    "uuid": "^10.0.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"

@@ -14,5 +14,9 @@ router
     verifySuperAdmin,
     superAdminController.getuserRegistration
   );
-
+// router.get(
+//   "/superadmin/shops",
+//   verifySuperAdmin,
+//   superAdminController.getShops
+// );
 exports.router = router;

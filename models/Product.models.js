@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
+const { v4: uuidv4 } = require("uuid");
 const ObjectId = mongoose.Schema.ObjectId;
 
 const ReviewSchema = new Schema({
@@ -22,12 +23,7 @@ const ProductSchema = mongoose.Schema(
     sku: {
       type: String,
       required: true,
-      default: "SKU",
-      trim: true,
-    },
-    category: {
-      type: String,
-      required: [true, "Please add a category"],
+      unique: true,
       trim: true,
     },
     quantity: {
@@ -45,10 +41,12 @@ const ProductSchema = mongoose.Schema(
       required: [true, "Please add a description"],
       trim: true,
     },
-    image: {
-      type: Object,
-      default: {},
-    },
+    image: [
+      {
+        type: Object,
+        default: {},
+      },
+    ],
     reviews: [ReviewSchema],
     availability: {
       type: String,
@@ -61,6 +59,21 @@ const ProductSchema = mongoose.Schema(
       min: 0,
       max: 5,
     },
+    categories: [
+      {
+        type: ObjectId,
+        ref: "PlantCategory",
+        required: [true, "Please add at least one category"],
+      },
+    ],
+    subcategories: [
+      {
+        type: ObjectId,
+        ref: "SubCategory",
+      },
+    ],
+    scientificName: { type: String },
+    careInstructions: { type: String },
   },
   {
     timestamps: true,

@@ -8,17 +8,39 @@ const verifyAdmin = verifyToken("admin");
 router.post(
   "/product",
   verifyAdmin,
-  upload.single("image"),
+  upload.array("images", 5),
   productController.createProduct
 );
+
 router.patch(
   "/product/:id",
   verifyAdmin,
-  upload.single("image"),
+  upload.array("images", 5),
   productController.updateProduct
 );
 router.get("/products", verifyAdmin, productController.getProducts);
 router.get("/product/:id", verifyAdmin, productController.getProduct);
 router.delete("/product/:id", verifyAdmin, productController.deleteProduct);
 
+// router.get("/:id", productController.getProductById);
+
+//category for product
+router.post("/category", verifyAdmin, productController.createCategory);
+router.put("/category/:id", verifyAdmin, productController.updateCategory);
+router.delete("/category/:id", verifyAdmin, productController.deleteCategory);
+router.get("/categories", verifyAdmin, productController.getCategories);
+
+//category for product
+router.post("/subcategory", verifyAdmin, productController.createSubCategory);
+router.put(
+  "/subcategory/:id",
+  verifyAdmin,
+  productController.updateSubCategory
+);
+router.delete(
+  "/subcategory/:id",
+  verifyAdmin,
+  productController.deleteSubCategory
+);
+router.get("/subcategory", productController.getSubCategories);
 exports.router = router;

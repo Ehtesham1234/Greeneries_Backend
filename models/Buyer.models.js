@@ -4,6 +4,7 @@ const { Schema } = mongoose;
 const ObjectId = mongoose.Schema.ObjectId;
 
 const BuyerSchema = new Schema({
+  user: { type: ObjectId, ref: "User", required: true },
   firstName: { type: String, trim: true },
   lastName: { type: String },
   address: { type: String },

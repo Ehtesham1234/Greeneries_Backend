@@ -1,5 +1,5 @@
 const multer = require("multer");
-
+const fs = require("fs");
 const storage = multer.diskStorage({
   destination: function (req, file, callback) {
     console.log("file.mimetype->", file.mimetype);

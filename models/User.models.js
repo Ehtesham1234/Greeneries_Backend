@@ -7,8 +7,8 @@ const ObjectId = mongoose.Schema.ObjectId;
 const UserSchema = new Schema(
   {
     role: { type: ObjectId, ref: "Role" },
-    shop: { type: ObjectId, ref: "Shop" },
-    buyer: { type: ObjectId, ref: "Buyer" },
+    shop: [{ type: ObjectId, ref: "Shop" }],
+    buyer: [{ type: ObjectId, ref: "Buyer" }],
     userName: { type: String },
     email: { type: String, trim: true, default: null },
     phoneNumber: { type: String, trim: true, default: null },
@@ -27,6 +27,19 @@ const UserSchema = new Schema(
       type: String,
     },
     oauthId: { type: String, unique: true, sparse: true },
+    location: {
+      type: {
+        type: String,
+        enum: ["Point"],
+        required: true,
+        default: "Point",
+      },
+      coordinates: {
+        type: [Number],
+        required: true,
+        default: [0, 0], // Default coordinates (longitude, latitude)
+      },
+    },
   },
   { timestamps: true }
 );
@@ -67,5 +80,5 @@ UserSchema.methods.generateRefreshToken = function () {
     }
   );
 };
-
+UserSchema.index({ location: "2dsphere" });
 module.exports = mongoose.model("User", UserSchema);

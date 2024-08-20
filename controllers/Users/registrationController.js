@@ -1,5 +1,4 @@
 const User = require("../../models/User.models");
-const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 const { validationResult } = require("express-validator");
 const Role = require("../../models/roles/roles.models");
@@ -32,15 +31,12 @@ const generateAccessAndRefereshTokens = async (userId) => {
 exports.userRegistration = asyncHandler(async (req, res, nex) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    // return res.status(400).json({ errors: errors.array() });
     throw new ApiError(400, "Validation Error", errors.array());
   }
   const { userName, phoneNumber, email, password } = req.body;
-  console.log("req.body", req.body);
+  // console.log("req.body", req.body);
   if (!userName) {
-    return res.json({
-      error: "name is required",
-    });
+    throw new ApiError(400, "Validation Error", ["name is required"]);
   }
   if (!phoneNumber && !email) {
     throw new ApiError(400, "Validation Error", [
@@ -113,9 +109,6 @@ exports.userRegistration = asyncHandler(async (req, res, nex) => {
   const roleObject = await Role.findOne({ id: 3 });
   console.log("roleObject", roleObject);
 
-  // Hash password
-  // const salt = await bcrypt.genSalt(10);
-  // const hashedPassword = await bcrypt.hash(password, salt);
 
   // Generate OTP and expiry time
   const otp = crypto.randomBytes(3).toString("hex");
@@ -157,6 +150,8 @@ exports.userRegistration = asyncHandler(async (req, res, nex) => {
 
 exports.userVerification = asyncHandler(async (req, res, next) => {
   const { phoneNumber, email, otpVerificationCode } = req.body;
+  const roleObject = await Role.findOne({ id: 3 });
+  console.log("roleObject", roleObject);
   // Fetch user details
   let user;
   if (email) {
@@ -168,6 +163,10 @@ exports.userVerification = asyncHandler(async (req, res, next) => {
   // Check if user exists
   if (!user) {
     throw new ApiError(400, "User not found");
+  }
+  // Check if user autherized
+  if (user.role != roleObject._id) {
+    throw new ApiError(400, "User not autherized");
   }
 
   // Check OTP expiry
@@ -213,7 +212,7 @@ exports.userVerification = asyncHandler(async (req, res, next) => {
   );
 });
 
-// sign In
+// sign In // role check bhe kerna hai app ka login hai to id 3 user chahiye werna seller login kar lega
 exports.userSignIn = asyncHandler(async (req, res, nex) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -274,13 +273,15 @@ exports.userSignIn = asyncHandler(async (req, res, nex) => {
       .status(201)
       .json(
         new ApiResponse(
-          200,
+          201,
           { user: createdUser },
           "User not verified OTP sent for verification"
         )
       );
   }
 
+  const roleObject = await Role.findOne({ id: 3 });
+  console.log("roleObject", roleObject);
   // Check password
   const isPasswordValid = await user.isPasswordCorrect(password);
 
@@ -288,6 +289,9 @@ exports.userSignIn = asyncHandler(async (req, res, nex) => {
     throw new ApiError(401, "Invalid user credentials");
   }
 
+  if (user.role != roleObject._id) {
+    throw new ApiError(401, "User not autherize");
+  }
   const { accessToken, refreshToken } = await generateAccessAndRefereshTokens(
     user._id
   );
@@ -345,27 +349,11 @@ exports.logoutUser = asyncHandler(async (req, res) => {
     .clearCookie("refreshToken", options)
     .json(new ApiResponse(200, {}, "User logged Out"));
 });
-exports.validateToken = asyncHandler(async (req, res) => {
-  const token = req.body.token || req.cookies.token;
-  if (!token) {
-    return res.status(403).send("A token is required for authentication");
-  }
-
-  try {
-    const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
-    const user = await User.findById(decoded._id);
-    if (!user) {
-      return res.status(401).send("Invalid token");
-    }
-    return res.status(200).json({ valid: true });
-  } catch (err) {
-    return res.status(401).send("Invalid token");
-  }
-});
 
 exports.refreshAccessToken = asyncHandler(async (req, res) => {
   const incomingRefreshToken =
     req.cookies.refreshToken || req.body.refreshToken;
+  console.log("incomingRefreshToken", incomingRefreshToken);
 
   if (!incomingRefreshToken) {
     throw new ApiError(401, "unauthorized request");
@@ -496,11 +484,6 @@ exports.resetPassword = asyncHandler(async (req, res, next) => {
   if (!user) {
     throw new ApiError(400, "User not found");
   }
-
-  // Bcrypt the new password
-  // const salt = await bcrypt.genSalt(10);
-  // const hashedPassword = await bcrypt.hash(password, salt);
-
   // Save the new password to user's data
   user.password = password;
   await user.save();
@@ -509,16 +492,20 @@ exports.resetPassword = asyncHandler(async (req, res, next) => {
 });
 
 //getting details of users
-exports.getuserRegistration = asyncHandler(async (req, res) => {
-  const { identifier } = req.params; // this can be either phoneNumber or email
-  let user;
-  if (identifier && identifier.includes("@")) {
-    user = await User.findOne({ email: identifier }).populate("role");
-  } else {
-    user = await User.findOne({ phoneNumber: identifier }).populate("role");
+exports.getuser = asyncHandler(async (req, res) => {
+  try {
+    const user = req.user;
+    console.log("user", user);
+
+    const foundUser = await User.findOne({ _id: user._id })
+      .populate("role")
+      .select("-password -refreshToken");
+
+    if (!foundUser) {
+      throw new ApiError(400, "User not found");
+    }
+    res.status(200).json(new ApiResponse(200, foundUser));
+  } catch (error) {
+    return res.status(500).send(error.message);
   }
-  if (!user) {
-    throw new ApiError(400, "User not found");
-  }
-  res.status(200).json(new ApiResponse(200, user));
 });
