@@ -109,7 +109,6 @@ exports.userRegistration = asyncHandler(async (req, res, nex) => {
   const roleObject = await Role.findOne({ id: 3 });
   console.log("roleObject", roleObject);
 
-
   // Generate OTP and expiry time
   const otp = crypto.randomBytes(3).toString("hex");
   const otpExpiry = Date.now() + 300000; // OTP valid for 5 minutes
@@ -288,9 +287,11 @@ exports.userSignIn = asyncHandler(async (req, res, nex) => {
   if (!isPasswordValid) {
     throw new ApiError(401, "Invalid user credentials");
   }
+  console.log("user.role._id", user.role._id);
+  console.log("roleObject._id", roleObject._id);
 
-  if (user.role != roleObject._id) {
-    throw new ApiError(401, "User not autherize");
+  if (user.role._id.toString() !== roleObject._id.toString()) {
+    throw new ApiError(401, "User not authorized");
   }
   const { accessToken, refreshToken } = await generateAccessAndRefereshTokens(
     user._id

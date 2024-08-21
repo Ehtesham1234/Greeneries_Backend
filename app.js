@@ -10,9 +10,10 @@ const superAdminRoute = require("./routes/Users/superAdminRoutes");
 const roleRoute = require("./routes/roles/rolesRoute");
 const productRoutes = require("./routes/product/productRoutes");
 const oAuthRoutes = require("./routes/Users/oAuthRoutes");
-const  Role  = require("./models/roles/roles.models");
-const  City  = require("./models/City.model");
-const  State  = require("./models/State.model");
+const Role = require("./models/roles/roles.models");
+const appRoute = require("./routes/App/appRoutes");
+const City = require("./models/City.model");
+const State = require("./models/State.model");
 const cityArray = require("./utils/city");
 const stateArray = require("./utils/state");
 const cors = require("cors");
@@ -167,6 +168,7 @@ app.use(
 
 // app.use("/api", require("./routes/api.route"));
 app.use("/api", userRoute.router);
+app.use("/api", appRoute.router);
 app.use("/api", superAdminRoute.router);
 app.use("/api", shopRoute.router);
 app.use("/api/roles", roleRoute.router);

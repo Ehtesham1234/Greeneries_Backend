@@ -423,23 +423,4 @@ exports.getSubCategories = asyncHandler(async (req, res) => {
     );
 });
 
-// exports.createProduct = asyncHandler(async (req, res) => {
-//   let { name, category, ...otherDetails } = req.body;
 
-//   // Fetch plant info from API
-//   const plantInfo = await getPlantInfo(name);
-
-//   // Use API data to populate product details
-//   const product = await Product.create({
-//     name,
-//     category,
-//     scientificName: plantInfo.scientific_name,
-//     careInstructions: plantInfo.care_instructions,
-//     ...otherDetails,
-//     user: req.user._id,
-//   });
-
-//   res
-//     .status(201)
-//     .json(new ApiResponse(201, product, "Product created successfully"));
-// });
