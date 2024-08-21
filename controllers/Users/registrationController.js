@@ -2,6 +2,7 @@ const User = require("../../models/User.models");
 const crypto = require("crypto");
 const { validationResult } = require("express-validator");
 const Role = require("../../models/roles/roles.models");
+const Product = require("../../models/Product.models");
 const jwt = require("jsonwebtoken");
 const { sendOtp } = require("../../utils/fileUploads");
 const { asyncHandler } = require("../../utils/asyncHandler");
@@ -280,15 +281,15 @@ exports.userSignIn = asyncHandler(async (req, res, nex) => {
   }
 
   const roleObject = await Role.findOne({ id: 3 });
-  console.log("roleObject", roleObject);
+  // console.log("roleObject", roleObject);
   // Check password
   const isPasswordValid = await user.isPasswordCorrect(password);
 
   if (!isPasswordValid) {
     throw new ApiError(401, "Invalid user credentials");
   }
-  console.log("user.role._id", user.role._id);
-  console.log("roleObject._id", roleObject._id);
+  // console.log("user.role._id", user.role._id);
+  // console.log("roleObject._id", roleObject._id);
 
   if (user.role._id.toString() !== roleObject._id.toString()) {
     throw new ApiError(401, "User not authorized");
@@ -508,5 +509,28 @@ exports.getuser = asyncHandler(async (req, res) => {
     res.status(200).json(new ApiResponse(200, foundUser));
   } catch (error) {
     return res.status(500).send(error.message);
+  }
+});
+
+exports.purchase = asyncHandler(async (req, res) => {
+  try {
+    const { productId, quantity } = req.body;
+
+    const product = await Product.findById(productId);
+    if (!product) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Product not found." });
+    }
+
+    // Update sales count
+    product.salesCount += quantity;
+    await product.save();
+
+    // Proceed with further order processing...
+    res.json({ success: true, message: "Purchase successful!", product });
+  } catch (error) {
+    console.error("Error processing purchase:", error);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
   }
 });

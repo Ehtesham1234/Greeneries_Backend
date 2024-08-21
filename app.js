@@ -166,6 +166,9 @@ app.use(
   })
 );
 
+//sales k trending k liye 24 hours cron
+// require("./services/cronJobs");
+
 // app.use("/api", require("./routes/api.route"));
 app.use("/api", userRoute.router);
 app.use("/api", appRoute.router);

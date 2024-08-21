@@ -74,6 +74,22 @@ const ProductSchema = mongoose.Schema(
     ],
     scientificName: { type: String },
     careInstructions: { type: String },
+    isFeatured: {
+      type: Boolean,
+      default: false,
+    },
+    isTrending: {
+      type: Boolean,
+      default: false,
+    },
+    isOnSale: {
+      type: Boolean,
+      default: false,
+    },
+    salePrice: {
+      type: String,
+      trim: true,
+    },
   },
   {
     timestamps: true,

@@ -274,6 +274,18 @@ exports.getProductById = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, product, "Product retrieved successfully"));
 });
 
+exports.isFeaturedProduct = asyncHandler(async (req, res) => {
+  const productId = req.params.id;
+  await Product.findByIdAndUpdate(productId, { isFeatured: true });
+  res.send({ success: true, message: "Product marked as featured." });
+});
+
+exports.onSalesProduct = asyncHandler(async (req, res) => {
+  const productId = req.params.id;
+  const { salePrice } = req.body;
+  await Product.findByIdAndUpdate(productId, { isOnSale: true, salePrice });
+  res.send({ success: true, message: "Product marked as on sale." });
+});
 exports.createCategory = asyncHandler(async (req, res) => {
   const category = await PlantCategory.create(req.body);
   res
@@ -422,5 +434,3 @@ exports.getSubCategories = asyncHandler(async (req, res) => {
       )
     );
 });
-
-

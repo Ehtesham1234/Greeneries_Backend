@@ -12,7 +12,7 @@ exports.verifyToken = (role) => async (req, res, next) => {
     token = req.headers.authorization.split(" ")[1];
   }
 
-  console.log("token", token);
+  // console.log("token", token);
   if (!token) {
     return res.status(403).send("A token is required for authentication");
   }
