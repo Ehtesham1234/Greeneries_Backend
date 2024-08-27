@@ -12,6 +12,7 @@ const BuyerSchema = new Schema({
   stateCode: { type: String },
   city: { type: String },
   zipCode: { type: String },
+  phoneNumber: { type: String, trim: true, default: null },
   profileImage: {
     type: Object,
     default: {},

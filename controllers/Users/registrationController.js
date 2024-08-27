@@ -3,13 +3,19 @@ const crypto = require("crypto");
 const { validationResult } = require("express-validator");
 const Role = require("../../models/roles/roles.models");
 const Product = require("../../models/Product.models");
+const Shop = require("../../models/Shop..models");
+const Cart = require("../../models/Cart.models");
+const Buyer = require("../../models/Buyer.models");
 const jwt = require("jsonwebtoken");
 const { sendOtp } = require("../../utils/fileUploads");
 const { asyncHandler } = require("../../utils/asyncHandler");
 const { ApiError } = require("../../utils/ApiError");
 const { ApiResponse } = require("../../utils/ApiResponse");
 const { uploadOnCloudinary } = require("../../utils/cloudinary");
-
+const { promisify } = require("util");
+const fs = require("fs");
+const writeFileAsync = promisify(fs.writeFile);
+const unlinkAsync = promisify(fs.unlink);
 //refresh token
 const generateAccessAndRefereshTokens = async (userId) => {
   try {
@@ -501,6 +507,7 @@ exports.getuser = asyncHandler(async (req, res) => {
 
     const foundUser = await User.findOne({ _id: user._id })
       .populate("role")
+      .populate("buyer")
       .select("-password -refreshToken");
 
     if (!foundUser) {
@@ -509,6 +516,98 @@ exports.getuser = asyncHandler(async (req, res) => {
     res.status(200).json(new ApiResponse(200, foundUser));
   } catch (error) {
     return res.status(500).send(error.message);
+  }
+});
+
+//user update
+exports.editUser = asyncHandler(async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const {
+      firstName,
+      lastName,
+      address,
+      base64Image,
+      countryId,
+      stateCode,
+      city,
+      zipCode,
+      phoneNumber,
+    } = req.body;
+
+    // Handle Image upload
+    let fileData = {};
+    if (base64Image) {
+      // const base64Data = base64Image.replace(/^data:image\/(.*)base64,/, "");
+      const buffer = Buffer.from(base64Image, "base64");
+      const tempFilePath = path.join(__dirname, "tempImage.png");
+      await writeFileAsync(tempFilePath, buffer);
+
+      try {
+        const uploadedFile = await uploadOnCloudinary(tempFilePath);
+        if (!uploadedFile) {
+          res.status(500);
+          throw new ApiError(500, "Image could not be uploaded");
+        }
+        fileData = {
+          fileName: "tempImage.png",
+          filePath: uploadedFile.secure_url,
+          fileType: "image/png",
+          fileSize: buffer.length,
+        };
+        await unlinkAsync(tempFilePath);
+      } catch (error) {
+        await unlinkAsync(tempFilePath);
+        res.status(500);
+        throw new ApiError(500, "Image could not be uploaded");
+      }
+    }
+
+    // Update User details
+    const user = await User.findByIdAndUpdate(
+      userId,
+      {
+        userName: firstName + lastName,
+        photo: Object.keys(fileData).length === 0 ? req.user.photo : fileData,
+      },
+      {
+        new: true,
+        runValidators: true,
+      }
+    );
+
+    // Update Buyer details
+    const buyer = await Buyer.findOneAndUpdate(
+      { user: userId },
+      {
+        firstName,
+        lastName,
+        address,
+        countryId,
+        stateCode,
+        city,
+        zipCode,
+        phoneNumber,
+        profileImage:
+          Object.keys(fileData).length === 0 ? req.user.photo : fileData,
+      },
+      {
+        new: true,
+        runValidators: true,
+      }
+    );
+
+    res
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          { user, buyer },
+          "User profile updated successfully"
+        )
+      );
+  } catch (error) {
+    throw new ApiError(400, "Something went wrong in editing user");
   }
 });
 
@@ -534,3 +633,330 @@ exports.purchase = asyncHandler(async (req, res) => {
     res.status(500).json({ success: false, message: "Internal Server Error" });
   }
 });
+
+exports.addToCart = asyncHandler(async (req, res) => {
+  try {
+    const { userId, productId, sellerId, quantity } = req.body;
+
+    // Validate quantity (only if not a wishlist item)
+    if (quantity <= 0) {
+      return res
+        .status(400)
+        .send({ error: "Quantity must be greater than zero" });
+    }
+
+    // Fetch the product details to get the price
+    const product = await Product.findOne({ _id: productId, user: sellerId });
+    if (!product) {
+      return res
+        .status(404)
+        .send({ error: "Product not found for this seller" });
+    }
+
+    // Check if the requested quantity exceeds available stock
+    if (quantity > product.quantity) {
+      return res
+        .status(400)
+        .send({ error: "Requested quantity exceeds available stock" });
+    }
+
+    const productPrice = product.price;
+
+    let cart = await Cart.findOne({ userId });
+
+    if (cart) {
+      const itemIndex = cart.products.findIndex(
+        (item) => item.productId.toString() === productId && !item.isWishList
+      );
+      if (itemIndex > -1) {
+        // Update the quantity and recalculate the total price
+        const newQuantity = quantity;
+        if (newQuantity > product.quantity) {
+          return res
+            .status(400)
+            .send({ error: "Requested quantity exceeds available stock" });
+        }
+        cart.products[itemIndex].quantity = newQuantity;
+        cart.products[itemIndex].price = newQuantity * productPrice;
+      } else {
+        cart.products.push({
+          productId,
+          quantity,
+          price: quantity * productPrice,
+          isWishList: false,
+        });
+      }
+    } else {
+      cart = new Cart({
+        userId,
+        products: [
+          {
+            productId,
+            quantity,
+            price: quantity * productPrice,
+            isWishList: false,
+          },
+        ],
+      });
+    }
+
+    await cart.save();
+    res.status(200).send({ isSuccess: true });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ isSuccess: false, message: "Server Error" });
+  }
+});
+
+exports.getCart = asyncHandler(async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    const cart = await Cart.findOne({ userId }).populate({
+      path: "products.productId",
+      select: "name price description",
+    });
+    if (!cart) {
+      return res.status(404).send({ error: "Cart not found" });
+    }
+
+    // Filter out wishlist items
+    const cartItems = cart.products.filter((item) => !item.isWishList);
+    res.status(200).send({ isSuccess: true, cart: cartItems });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ isSuccess: false, message: "Server Error" });
+  }
+});
+
+exports.editCart = asyncHandler(async (req, res) => {
+  try {
+    const { userId, productId, quantity } = req.body;
+
+    // Validate quantity
+    if (quantity <= 0) {
+      return res
+        .status(400)
+        .send({ error: "Quantity must be greater than zero" });
+    }
+
+    let cart = await Cart.findOne({ userId });
+
+    if (cart) {
+      const itemIndex = cart.products.findIndex(
+        (item) => item.productId.toString() === productId && !item.isWishList
+      );
+      if (itemIndex > -1) {
+        // Update quantity and recalculate price
+        cart.products[itemIndex].quantity = quantity;
+        const product = await Product.findById(productId);
+        if (product) {
+          cart.products[itemIndex].price = quantity * product.price;
+        } else {
+          return res.status(404).send({ error: "Product not found" });
+        }
+      } else {
+        return res.status(404).send({ error: "Item not found in cart" });
+      }
+    } else {
+      return res.status(404).send({ error: "Cart not found" });
+    }
+
+    await cart.save();
+    res.status(200).send({ isSuccess: true, cart });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ isSuccess: false, message: "Server Error" });
+  }
+});
+
+exports.removeFromCart = asyncHandler(async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { productId } = req.body;
+
+    let cart = await Cart.findOne({ userId });
+
+    if (!cart) {
+      return res.status(404).send({ error: "Cart not found" });
+    }
+
+    const itemIndex = cart.products.findIndex(
+      (item) => item.productId.toString() === productId && !item.isWishList
+    );
+
+    if (itemIndex > -1) {
+      cart.products.splice(itemIndex, 1); // Remove the item
+      await cart.save();
+      res
+        .status(200)
+        .send({ isSuccess: true, message: "Product removed from cart" });
+    } else {
+      res.status(404).send({ error: "Product not found in cart" });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ isSuccess: false, message: "Server Error" });
+  }
+});
+
+exports.addToWishlist = asyncHandler(async (req, res) => {
+  try {
+    const { userId, productId, sellerId } = req.body;
+
+    // Fetch the product details
+    const product = await Product.findOne({ _id: productId, user: sellerId });
+    if (!product) {
+      return res
+        .status(404)
+        .send({ error: "Product not found for this seller" });
+    }
+
+    let cart = await Cart.findOne({ userId });
+
+    if (cart) {
+      const itemIndex = cart.products.findIndex(
+        (item) => item.productId.toString() === productId && item.isWishList
+      );
+      if (itemIndex === -1) {
+        // Add to wishlist
+        cart.products.push({
+          productId,
+          isWishList: true,
+        });
+      } else {
+        // Item already in wishlist
+        return res.status(400).send({ error: "Item already in wishlist" });
+      }
+    } else {
+      cart = new Cart({
+        userId,
+        products: [{ productId, isWishList: true }],
+      });
+    }
+
+    await cart.save();
+    res.status(200).send({ isSuccess: true });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ isSuccess: false, message: "Server Error" });
+  }
+});
+
+exports.getWishlist = asyncHandler(async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    const cart = await Cart.findOne(
+      { userId },
+      { products: { $elemMatch: { isWishList: true } } }
+    ).populate("products.productId");
+
+    if (!cart || cart.products.length === 0) {
+      return res.status(404).send({ error: "No items found in wishlist" });
+    }
+
+    res.status(200).send({ isSuccess: true, wishlist: cart.products });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ isSuccess: false, message: "Server Error" });
+  }
+});
+
+exports.removeFromWishlist = asyncHandler(async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { productId } = req.body;
+    let cart = await Cart.findOne({ userId });
+
+    if (!cart) {
+      return res.status(404).send({ error: "Cart not found" });
+    }
+
+    const itemIndex = cart.products.findIndex(
+      (item) => item.productId.toString() === productId && item.isWishList
+    );
+
+    if (itemIndex > -1) {
+      cart.products.splice(itemIndex, 1); // Remove the item
+      await cart.save();
+      res
+        .status(200)
+        .send({ isSuccess: true, message: "Product removed from wishlist" });
+    } else {
+      res.status(404).send({ error: "Product not found in wishlist" });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ isSuccess: false, message: "Server Error" });
+  }
+});
+
+// exports.placeOrder = async (req, res) => {
+//   const session = await mongoose.startSession();
+//   session.startTransaction();
+
+//   try {
+//     const { userId, sellerlId, paymentType , productId} = req.body;
+
+//     // Fetch the cart for the user and hospital
+//     const cart = await Cart.findOne({ userId, sellerlId }).session(session);
+//     if (!cart || cart.items.length === 0) {
+//         await session.abortTransaction();
+//         session.endSession();
+//         return res.status(400).send({ error: 'Cart is empty' });
+//     }
+
+//     // Calculate the total amount
+//     const totalAmount = cart.items.reduce((acc, item) => acc + item.price, 0);
+
+//     // Create a new order
+//     const order = new Order({
+//         userId,
+//         sellerlId,
+//         totalAmount,
+//         status: 'pending',
+//         paymentType,
+//         paymentStatus: paymentType === 'Online' ? 'received' : 'pending',
+//         orderDate: new Date()
+//     });
+
+//     await order.save({ session });
+
+//     // Create purchased items and update medicine quantity
+//     for (const item of cart.items) {
+//         await new Purchased({
+//             orderId: order._id,
+//             productId: item.productId,
+//             sellerlId,
+//             quantity: item.quantity,
+//             price: item.price
+//         }).save({ session });
+
+//         // Decrease the quantity of the medicine
+//         const product = await Product.findById(item.productId).session(session);
+//         if (product) {
+//             if (product.quantity < item.quantity) {
+//                 await session.abortTransaction();
+//                 session.endSession();
+//                 return res.status(400).send({ error: `Insufficient quantity for medicine: ${product.name}` });
+//             }
+//             product.quantity -= item.quantity;
+//             await product.save({ session });
+//         }
+//     }
+
+//     // Clear the cart
+//     await Cart.findByIdAndDelete(cart._id).session(session);
+
+//     await session.commitTransaction();
+//     session.endSession();
+
+//     res.status(200).send({ isSuccess: true, order });
+//   } catch (error) {
+//     await session.abortTransaction();
+//     session.endSession();
+//     console.error(error);
+//     res.status(500).send({ isSuccess: false, message: "Server Error" });
+//   }
+// };

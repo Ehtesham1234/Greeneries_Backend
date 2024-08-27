@@ -15,6 +15,13 @@ router
   .post("/forgetpassword/verifyotp", userController.verifyOtpPassword)
   .post("/forgetpassword/resetpassword", userController.resetPassword)
   .get("/getuser", verifyUser, userController.getuser)
-  .post("/purchase", verifyUser, userController.purchase);
-
+  .patch("/user", verifyUser, userController.editUser)
+  .post("/purchase", verifyUser, userController.purchase)
+  .post("/user/cart/add", verifyUser, userController.addToCart)
+  .get("/user/cart", verifyUser, userController.getCart)
+  .patch("/user/cart/edit", verifyUser, userController.editCart)
+  .post("/user/cart/remove", verifyUser, userController.removeFromCart)
+  .post("/user/wishlist/add", verifyUser, userController.addToWishlist)
+  .get("/user/wishlist", verifyUser, userController.getWishlist)
+  .post("/user/wishlist/remove", verifyUser, userController.removeFromWishlist);
 exports.router = router;

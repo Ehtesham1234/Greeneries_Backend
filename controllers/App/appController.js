@@ -41,3 +41,31 @@ exports.getSubCategories = asyncHandler(async (req, res) => {
       )
     );
 });
+
+//pagination dalna hai jisse limited product jaye ekbar mein sab bhejne se problem aa sakta hai.
+exports.getProducts = asyncHandler(async (req, res) => {
+  try {
+    const products = await Product.find({ user: req.user.id })
+      .sort("-createdAt")
+      .select(" user name price image  rating");
+
+    res
+      .status(200)
+      .json(new ApiResponse(200, products, "verified successfully"));
+  } catch (error) {
+    throw new ApiError(400, "No prodcut found");
+  }
+});
+
+exports.getProduct = asyncHandler(async (req, res) => {
+  try {
+    const productId = req.params.id;
+    const product = await Product.findById(productId);
+    res
+      .status(200)
+      .json(new ApiResponse(200, product, "product recived successfully"));
+  } catch (error) {
+    throw new ApiError(400, "something went wrong");
+  }
+});
+

@@ -1,13 +1,13 @@
 const mongoose = require("mongoose");
-const { Schema } = mongoose;
-const ObjectId = mongoose.Schema.ObjectId;
+// const { Schema } = mongoose;
+const ObjectId = mongoose.Schema.Types.ObjectId;
 
 const CartSchema = new mongoose.Schema(
   {
-    owner: {
+    userId: {
       type: ObjectId,
       required: true,
-      ref: "Buyer",
+      ref: "User",
     },
     products: [
       {
@@ -24,6 +24,7 @@ const CartSchema = new mongoose.Schema(
           default: 1,
         },
         price: Number,
+        isWishList: { type: Boolean, default: false },
       },
     ],
     bill: {
