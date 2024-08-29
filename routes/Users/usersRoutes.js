@@ -3,7 +3,6 @@ const userController = require("../../controllers/Users/registrationController")
 const router = express.Router();
 const { verifyToken } = require("../../middleware/validateToken.middleware");
 const verifyUser = verifyToken("user");
-// const { upload } = require("../../middleware/multer.middleware");
 
 router
   .post("/signup", userController.userRegistration)
@@ -16,12 +15,18 @@ router
   .post("/forgetpassword/resetpassword", userController.resetPassword)
   .get("/getuser", verifyUser, userController.getuser)
   .patch("/user", verifyUser, userController.editUser)
-  .post("/purchase", verifyUser, userController.purchase)
+  .post("/user/buyer", verifyUser, userController.editBuyer)
+  .delete("/user/buyer", verifyUser, userController.deleteBuyer)
   .post("/user/cart/add", verifyUser, userController.addToCart)
   .get("/user/cart", verifyUser, userController.getCart)
   .patch("/user/cart/edit", verifyUser, userController.editCart)
   .post("/user/cart/remove", verifyUser, userController.removeFromCart)
   .post("/user/wishlist/add", verifyUser, userController.addToWishlist)
   .get("/user/wishlist", verifyUser, userController.getWishlist)
-  .post("/user/wishlist/remove", verifyUser, userController.removeFromWishlist);
+  .post("/user/wishlist/remove", verifyUser, userController.removeFromWishlist)
+  .post("/blogs", verifyUser, userController.createBlog)
+  .get("/blogs", verifyUser, userController.getBlog)
+  .post("/blogs/:id/like", verifyUser, userController.likeBlog)
+  .post("/blogs/:id/save", verifyUser, userController.saveBlog);
+
 exports.router = router;

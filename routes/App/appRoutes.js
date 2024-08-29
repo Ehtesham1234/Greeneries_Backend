@@ -12,7 +12,7 @@ router.get(
 
 router.get("/category", verifyUser, appController.getCategories);
 
-router.get("/products" , appController.getProducts)
-router.get("/product/:id" , appController.getProduct)
+router.get("/products", appController.getProducts);
+router.get("/product/:id", appController.getProduct);
 
 exports.router = router;

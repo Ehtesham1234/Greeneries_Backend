@@ -1,4 +1,4 @@
-const Shop = require("../../models/Shop..models");
+const Shop = require("../../models/Shop.models");
 const User = require("../../models/User.models");
 const crypto = require("crypto");
 const { validationResult } = require("express-validator");
@@ -528,7 +528,6 @@ exports.getShopDetails = asyncHandler(async (req, res) => {
     return res.status(500).send(error.message);
   }
 });
-
 
 exports.createSellerProfile = asyncHandler(async (req, res) => {
   const { shopName, shopAddress, shopCity, shopState, shopZipCode, location } =

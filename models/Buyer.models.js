@@ -8,15 +8,11 @@ const BuyerSchema = new Schema({
   firstName: { type: String, trim: true },
   lastName: { type: String },
   address: { type: String },
-  countryId: { type: Number },
+  countryId: { type: String },
   stateCode: { type: String },
   city: { type: String },
   zipCode: { type: String },
   phoneNumber: { type: String, trim: true, default: null },
-  profileImage: {
-    type: Object,
-    default: {},
-  },
 });
 
 module.exports = mongoose.model("Buyer", BuyerSchema);

@@ -1,6 +1,7 @@
 const Product = require("../../models/Product.models");
 const PlantCategory = require("../../models/PlantCategory.models");
 const PlantSubCategory = require("../../models/PlantSubCategories.models");
+const Shop = require("../../models/Shop.models");
 const { fileSizeFormatter } = require("../../utils/fileUploads");
 const { asyncHandler } = require("../../utils/asyncHandler");
 const { ApiError } = require("../../utils/ApiError");
@@ -26,106 +27,157 @@ exports.createProduct = asyncHandler(async (req, res) => {
     rating,
     scientificName,
     careInstructions,
+    shopId,
   } = req.body;
 
-  try {
-    // Validation
-    if (
-      !name ||
-      !categories ||
-      !quantity ||
-      !price ||
-      !description ||
-      // !availability ||
-      rating === undefined ||
-      rating === null // Allow rating to be 0 or any number but not undefined
-    ) {
-      res.status(400);
-      throw new ApiError(400, "Please fill in all required fields");
-    }
+  // Validation
+  if (
+    !name ||
+    !categories ||
+    !quantity ||
+    !price ||
+    !description ||
+    // !availability ||
+    rating === undefined ||
+    rating === null // Allow rating to be 0 or any number but not undefined
+  ) {
+    // res.status(400);
+    throw new ApiError(400, "Please fill in all required fields");
+  }
 
-    // Check if categories exist
-    const categoryDocs = await PlantCategory.find({ _id: { $in: categories } });
-    if (categoryDocs.length !== categories.length) {
-      throw new ApiError(404, "One or more categories not found");
-    }
+  // Check if categories exist
+  const categoryDocs = await PlantCategory.find({ _id: { $in: categories } });
+  if (categoryDocs.length !== categories.length) {
+    throw new ApiError(404, "One or more categories not found");
+  }
 
-    // Check if subcategories exist, if provided
-    let subCategoryDocs = [];
-    if (subcategories && subcategories.length > 0) {
-      subCategoryDocs = await PlantSubCategory.find({
-        _id: { $in: subcategories },
-      });
-      if (subCategoryDocs.length !== subcategories.length) {
-        throw new ApiError(404, "One or more subcategories not found");
-      }
+  // Check if subcategories exist, if provided
+  let subCategoryDocs = [];
+  if (subcategories && subcategories.length > 0) {
+    subCategoryDocs = await PlantSubCategory.find({
+      _id: { $in: subcategories },
+    });
+    if (subCategoryDocs.length !== subcategories.length) {
+      throw new ApiError(404, "One or more subcategories not found");
     }
+  }
 
-    // Handle Image upload
-    let fileData = [];
-    if (req.files) {
-      for (const file of req.files) {
-        try {
-          const uploadedFile = await uploadOnCloudinary(file.path);
-          if (!uploadedFile) {
-            res.status(500);
-            throw new ApiError(500, "Image could not be uploaded");
-          }
-          fileData.push({
-            fileName: file.originalname,
-            filePath: uploadedFile.secure_url,
-            fileType: file.mimetype,
-            fileSize: fileSizeFormatter(file.size, 2),
-          });
-          // Remove the file from the local folder after uploading
-          // if (fs.existsSync(file.path)) {
-          //   fs.unlink(file.path, (err) => {
-          //     if (err) {
-          //       console.error("Error while deleting local image file:", err);
-          //     }
-          //   });
-          // } else {
-          //   console.warn("File not found, cannot delete:", file.path);
-          // }
-        } catch (error) {
+  // Handle Image upload
+  let fileData = [];
+  if (req.files) {
+    for (const file of req.files) {
+      try {
+        const uploadedFile = await uploadOnCloudinary(file.path);
+        if (!uploadedFile) {
           res.status(500);
           throw new ApiError(500, "Image could not be uploaded");
         }
+        fileData.push({
+          fileName: file.originalname,
+          filePath: uploadedFile.secure_url,
+          fileType: file.mimetype,
+          fileSize: fileSizeFormatter(file.size, 2),
+        });
+      } catch (error) {
+        // res.status(500);
+        throw new ApiError(500, "Image could not be uploaded");
       }
     }
-
-    // Generate unique SKU
-    const sku = uuidv4();
-
-    // Create Product
-    const product = await Product.create({
-      user: req.user.id,
-      name,
-      sku,
-      categories,
-      subcategories,
-      quantity,
-      price,
-      description,
-      image: fileData, // Ensure image field matches the schema
-      // availability,
-      rating,
-      scientificName,
-      careInstructions,
-    });
-
-    res
-      .status(201)
-      .json(new ApiResponse(201, product, "Product created successfully"));
-  } catch (error) {
-    return res.status(500).send(error.message);
   }
+
+  // Generate unique SKU
+  const sku = uuidv4();
+
+  // Create Product
+  const product = await Product.create({
+    user: shopId,
+    name,
+    sku,
+    categories,
+    subcategories,
+    quantity,
+    price,
+    description,
+    image: fileData, // Ensure image field matches the schema
+    // availability,
+    rating,
+    scientificName,
+    careInstructions,
+  });
+
+  res
+    .status(201)
+    .json(new ApiResponse(201, product, "Product created successfully"));
 });
 
 // Get all Products
-exports.getProducts = asyncHandler(async (req, res) => {
-  const products = await Product.find({ user: req.user.id }).sort("-createdAt");
-  res.status(200).json(products);
+exports.getProducts = asyncHandler(async (req, res, next) => {
+  try {
+    const { page = 1, limit = 10, location, distance = 5000 } = req.query;
+
+    // Pagination
+    const skip = (page - 1) * limit;
+
+    // Filters
+    const trendingProducts = Product.find({ isTrending: true })
+      .skip(skip)
+      .limit(limit)
+      .sort("-createdAt");
+
+    const onSaleProducts = Product.find({ isOnSale: true })
+      .skip(skip)
+      .limit(limit)
+      .sort("-createdAt");
+
+    const allProducts = Product.find()
+      .skip(skip)
+      .limit(limit)
+      .sort("-createdAt");
+
+    // Nearby filter
+    let nearbyShops = [];
+    if (location) {
+      const [longitude, latitude] = location.split(",");
+      nearbyShops = await Shop.find({
+        location: {
+          $near: {
+            $geometry: {
+              type: "Point",
+              coordinates: [parseFloat(longitude), parseFloat(latitude)],
+            },
+            $maxDistance: parseFloat(distance), // Use distance from query or default
+          },
+        },
+      }).select("_id");
+    }
+
+    const nearbyProducts = nearbyShops.length
+      ? Product.find({ user: { $in: nearbyShops.map((shop) => shop._id) } })
+          .skip(skip)
+          .limit(limit)
+          .sort("-createdAt")
+      : [];
+
+    const [trending, onSale, nearby] = await Promise.all([
+      trendingProducts,
+      onSaleProducts,
+      nearbyProducts,
+    ]);
+
+    res.status(200).json(
+      new ApiResponse(
+        200,
+        {
+          trending: trending.length ? trending : [],
+          onSale: onSale.length ? onSale : [],
+          nearby: nearby.length ? nearby : [],
+        },
+        "Fetched successfully"
+      )
+    );
+  } catch (error) {
+    throw new ApiError(500, "Failed to fetch products", [error.message]);
+  }
 });
 
 // Get single product

@@ -43,6 +43,8 @@ const UserSchema = new Schema(
         default: [0, 0], // Default coordinates (longitude, latitude)
       },
     },
+    savedBlogs: [{ type: ObjectId, ref: "Blog" }],
+    likedBlogs: [{ type: ObjectId, ref: "Blog" }],
   },
   { timestamps: true }
 );
