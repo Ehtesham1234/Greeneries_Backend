@@ -69,7 +69,7 @@ const ProductSchema = mongoose.Schema(
     subcategories: [
       {
         type: ObjectId,
-        ref: "SubCategory",
+        ref: "PlantSubCategory",
       },
     ],
     scientificName: { type: String },

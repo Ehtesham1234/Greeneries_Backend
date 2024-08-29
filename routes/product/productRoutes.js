@@ -21,6 +21,13 @@ router.patch(
 router.get("/products", verifyAdmin, productController.getProducts);
 router.get("/product/:id", verifyAdmin, productController.getProduct);
 router.delete("/product/:id", verifyAdmin, productController.deleteProduct);
+
+router.post(
+  "/addproductfromcsv",
+  verifyAdmin,
+  upload.single("file"),
+  productController.addProductFromCsv
+);
 router.post(
   "/products/:id/feature",
   verifyAdmin,
@@ -31,7 +38,6 @@ router.post(
   verifyAdmin,
   productController.onSalesProduct
 );
-// router.get("/:id", productController.getProductById);
 
 //category for product
 router.post("/category", verifyAdmin, productController.createCategory);

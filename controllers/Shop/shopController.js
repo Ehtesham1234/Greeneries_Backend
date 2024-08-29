@@ -308,6 +308,11 @@ exports.shopSignIn = asyncHandler(async (req, res, next) => {
     const { accessToken, refreshToken } = await generateAccessAndRefereshTokens(
       user._id
     );
+
+    user.refreshToken = refreshToken;
+    user.isLoggedIn = true;
+    await user.save();
+    
     const loggedInUser = await User.findById(user._id).select(
       "-password -refreshToken"
     );
@@ -315,10 +320,6 @@ exports.shopSignIn = asyncHandler(async (req, res, next) => {
       httpOnly: true,
       secure: true,
     };
-
-    loggedInUser.refreshToken = refreshToken;
-    loggedInUser.isLoggedIn = true;
-    await loggedInUser.save();
 
     return res
       .status(200)

@@ -14,6 +14,13 @@ const {
 const { v4: uuidv4 } = require("uuid");
 const fs = require("fs");
 const path = require("path");
+const csv = require("csv-parser");
+const XLSX = require("xlsx");
+
+const generateSKU = (categoryCode, subcategoryCode, uniqueNumber) => {
+  return `${categoryCode}-${subcategoryCode}-${uniqueNumber}`;
+};
+
 // Create Product
 exports.createProduct = asyncHandler(async (req, res) => {
   const {
@@ -65,6 +72,7 @@ exports.createProduct = asyncHandler(async (req, res) => {
   // Handle Image upload
   let fileData = [];
   if (req.files) {
+    // console.log("req.files", req.files);
     for (const file of req.files) {
       try {
         const uploadedFile = await uploadOnCloudinary(file.path);
@@ -85,8 +93,21 @@ exports.createProduct = asyncHandler(async (req, res) => {
     }
   }
 
-  // Generate unique SKU
-  const sku = uuidv4();
+  // Retrieve category and subcategory codes
+  const categoryCode =
+    categoryDocs.length > 0
+      ? categoryDocs[0].name.slice(0, 3).toUpperCase()
+      : "UNKNOWN";
+  const subcategoryCode =
+    subCategoryDocs.length > 0
+      ? subCategoryDocs[0].name.slice(0, 2).toUpperCase()
+      : "GEN";
+
+  // Generate unique number (for simplicity, using a UUID here, but should be sequential or meaningful in production)
+  const uniqueNumber = Date.now(); // Example of a simple unique number
+
+  // Generate SKU
+  const sku = generateSKU(categoryCode, subcategoryCode, uniqueNumber);
 
   // Create Product
   const product = await Product.create({
@@ -314,18 +335,6 @@ exports.updateProduct = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, updatedProduct, "Product updated successfully"));
 });
 
-exports.getProductById = asyncHandler(async (req, res) => {
-  const product = await Product.findById(req.params.id).populate("category");
-
-  if (!product) {
-    throw new ApiError(404, "Product not found");
-  }
-
-  res
-    .status(200)
-    .json(new ApiResponse(200, product, "Product retrieved successfully"));
-});
-
 exports.isFeaturedProduct = asyncHandler(async (req, res) => {
   const productId = req.params.id;
   await Product.findByIdAndUpdate(productId, { isFeatured: true });
@@ -338,6 +347,176 @@ exports.onSalesProduct = asyncHandler(async (req, res) => {
   await Product.findByIdAndUpdate(productId, { isOnSale: true, salePrice });
   res.send({ success: true, message: "Product marked as on sale." });
 });
+
+async function processRowsProduct(fileRows, sellerId) {
+  try {
+    const products = [];
+
+    for (let row of fileRows) {
+      const {
+        name,
+        categories,
+        subcategories,
+        quantity,
+        price,
+        description,
+        rating,
+        imageUrl,
+        availability,
+        isFeatured,
+        isTrending,
+        isOnSale,
+        salePrice,
+      } = row;
+
+      // Validation
+      if (
+        !name ||
+        !categories ||
+        !quantity ||
+        !price ||
+        !description ||
+        rating === undefined ||
+        rating === null
+      ) {
+        throw new ApiError(400, "Please fill in all required fields");
+      }
+      // Convert Boolean strings to actual Boolean values
+      const isFeaturedBool = isFeatured === "TRUE" || isFeatured === "true";
+      const isTrendingBool = isTrending === "TRUE" || isTrending === "true";
+      const isOnSaleBool = isOnSale === "TRUE" || isOnSale === "true";
+
+      // Parse salePrice as a number, if provided
+      const salePriceNum = salePrice ? parseFloat(salePrice) : null;
+      if (isOnSaleBool && (salePriceNum === null || isNaN(salePriceNum))) {
+        throw new ApiError(400, "Invalid sale price");
+      }
+
+      // Handle categories (comma-separated or single ID)
+      const categoryIds = categories.split(",").map((id) => id.trim());
+      const categoryDocs = await PlantCategory.find({
+        _id: { $in: categoryIds },
+      });
+
+      console.log("categoryDocs", categoryDocs);
+      if (categoryDocs.length !== categoryIds.length) {
+        throw new ApiError(400, "One or more categories not found");
+      }
+
+      // Handle subcategories (comma-separated or single ID)
+      let subCategoryDocs = [];
+      if (subcategories) {
+        const subcategoryIds = subcategories.split(",").map((id) => id.trim());
+        subCategoryDocs = await PlantSubCategory.find({
+          _id: { $in: subcategoryIds },
+        });
+
+        if (subCategoryDocs.length !== subcategoryIds.length) {
+          throw new ApiError(400, "One or more subcategories not found");
+        }
+      }
+      console.log("subCategoryDocs", subCategoryDocs);
+      // Retrieve category and subcategory codes
+      const categoryCode =
+        categoryDocs.length > 0
+          ? categoryDocs[0].name.slice(0, 3).toUpperCase()
+          : "UNKNOWN";
+      const subcategoryCode =
+        subCategoryDocs.length > 0
+          ? subCategoryDocs[0].name.slice(0, 2).toUpperCase()
+          : "GEN";
+
+      const uniqueNumber = Date.now();
+
+      // Generate SKU
+      const sku = generateSKU(categoryCode, subcategoryCode, uniqueNumber);
+
+      // Prepare product data
+      const productData = {
+        user: sellerId,
+        name,
+        sku,
+        categories: categoryDocs.map((doc) => doc._id),
+        subcategories: subCategoryDocs.map((doc) => doc._id),
+        quantity: parseInt(quantity, 10),
+        price: parseFloat(price),
+        description,
+        rating: parseFloat(rating),
+        image: imageUrl ? [{ filePath: imageUrl }] : [], // Add image URL handling
+        availability,
+        isFeatured: isFeaturedBool,
+        isTrending: isTrendingBool,
+        isOnSale: isOnSaleBool,
+        salePrice: salePriceNum,
+      };
+      console.log("productData", productData);
+
+      const product = new Product(productData);
+      const savedProduct = await product.save();
+      products.push(savedProduct);
+    }
+    console.log("products", products);
+
+    return products;
+  } catch (error) {
+    console.error("Error processing rows:", error);
+    throw Error;
+  }
+}
+
+// Add product with CSV
+exports.addProductFromCsv = asyncHandler(async (req, res) => {
+  const { sellerId } = req.query;
+  const csvFileName = "PRODUCT";
+  // console.log("sellerId 1", sellerId);
+
+  if (!req.file) {
+    throw new ApiError(400, "No file uploaded.");
+  }
+
+  if (!sellerId) {
+    throw new ApiError(400, "Seller ID is required.");
+  }
+
+  let fileRows = [];
+  // console.log("sellerId 2", sellerId);
+  // Check if file is a CSV
+  if (req.file.mimetype === "text/csv") {
+    fs.createReadStream(req.file.path)
+      .pipe(csv())
+      .on("data", (data) => {
+        fileRows.push(data); // push each row
+      })
+      .on("end", async () => {
+        fs.unlinkSync(req.file.path); // remove temp file
+        // Process 'fileRows' and respond
+        // console.log("sellerId 3", sellerId);
+        switch (csvFileName) {
+          case "PRODUCT":
+            await processRowsProduct(fileRows, sellerId);
+            break;
+          default:
+            throw new ApiError(400, "Invalid file name");
+        }
+        // console.log("sellerId 4", sellerId);
+        res
+          .status(200)
+          .send(new ApiResponse(200, "File uploaded successfully."));
+      });
+  } else if (req.file.mimetype.includes("spreadsheetml")) {
+    // Check if file is an Excel
+    const workbook = XLSX.readFile(req.file.path);
+    const sheet_name_list = workbook.SheetNames;
+    fileRows = XLSX.utils.sheet_to_json(workbook.Sheets[sheet_name_list[0]]);
+    fs.unlinkSync(req.file.path); // remove temp file
+    await processRowsProduct(fileRows, sellerId);
+    console.log("fileRows", fileRows);
+    res.status(200).send(new ApiResponse(200, "File uploaded successfully."));
+  } else {
+    throw new ApiError(404, "Only CSV and XLS files are acceptable");
+  }
+});
+
 exports.createCategory = asyncHandler(async (req, res) => {
   const category = await PlantCategory.create(req.body);
   res

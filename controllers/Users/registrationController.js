@@ -175,7 +175,7 @@ exports.userVerification = asyncHandler(async (req, res, next) => {
     throw new ApiError(400, "User not found");
   }
   // Check if user autherized
-  if (user.role != roleObject._id) {
+  if (user.role.toString() != roleObject._id.toString()) {
     throw new ApiError(400, "User not autherized");
   }
 

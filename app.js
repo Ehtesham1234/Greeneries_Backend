@@ -194,7 +194,8 @@ app.use((err, req, res, next) => {
     res.status(500).json({
       status: 500,
       message: "Internal Server Error",
-      errors: [err],
+      error: err.message, // Include the error message
+      stack: err.stack, // Include the stack trace (optional)
     });
   }
 });
