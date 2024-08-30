@@ -35,6 +35,7 @@ exports.createProduct = asyncHandler(async (req, res) => {
     scientificName,
     careInstructions,
     shopId,
+    productType,
   } = req.body;
 
   // Validation
@@ -111,7 +112,7 @@ exports.createProduct = asyncHandler(async (req, res) => {
 
   // Create Product
   const product = await Product.create({
-    user: shopId,
+    seller: shopId,
     name,
     sku,
     categories,
@@ -124,6 +125,7 @@ exports.createProduct = asyncHandler(async (req, res) => {
     rating,
     scientificName,
     careInstructions,
+    productType,
   });
 
   res
@@ -173,7 +175,7 @@ exports.getProducts = asyncHandler(async (req, res, next) => {
     }
 
     const nearbyProducts = nearbyShops.length
-      ? Product.find({ user: { $in: nearbyShops.map((shop) => shop._id) } })
+      ? Product.find({ seller: { $in: nearbyShops.map((shop) => shop._id) } })
           .skip(skip)
           .limit(limit)
           .sort("-createdAt")
@@ -246,6 +248,7 @@ exports.updateProduct = asyncHandler(async (req, res) => {
     availability,
     rating,
     reviews,
+    productType,
   } = req.body;
   const { id } = req.params;
   const product = await Product.findById(id);
@@ -323,6 +326,7 @@ exports.updateProduct = asyncHandler(async (req, res) => {
       reviews,
       availability,
       rating,
+      productType,
     },
     {
       new: true,
@@ -367,6 +371,7 @@ async function processRowsProduct(fileRows, sellerId) {
         isTrending,
         isOnSale,
         salePrice,
+        productType,
       } = row;
 
       // Validation
@@ -415,7 +420,7 @@ async function processRowsProduct(fileRows, sellerId) {
           throw new ApiError(400, "One or more subcategories not found");
         }
       }
-      console.log("subCategoryDocs", subCategoryDocs);
+      // console.log("subCategoryDocs", subCategoryDocs);
       // Retrieve category and subcategory codes
       const categoryCode =
         categoryDocs.length > 0
@@ -433,7 +438,7 @@ async function processRowsProduct(fileRows, sellerId) {
 
       // Prepare product data
       const productData = {
-        user: sellerId,
+        seller: sellerId,
         name,
         sku,
         categories: categoryDocs.map((doc) => doc._id),
@@ -448,16 +453,34 @@ async function processRowsProduct(fileRows, sellerId) {
         isTrending: isTrendingBool,
         isOnSale: isOnSaleBool,
         salePrice: salePriceNum,
+        productType,
       };
-      console.log("productData", productData);
 
-      const product = new Product(productData);
-      const savedProduct = await product.save();
-      products.push(savedProduct);
+      // Check if product already exists (case-insensitive)
+      const existingProduct = await Product.findOne({
+        user: sellerId,
+        name: { $regex: new RegExp(`^${name.trim()}$`, "i") },
+      });
+      console.log("existingProduct", existingProduct);
+
+      if (existingProduct) {
+        // Update existing product
+        const updatedProduct = await Product.findByIdAndUpdate(
+          existingProduct._id,
+          productData,
+          { new: true }
+        );
+        console.log("updatedProduct", updatedProduct);
+        products.push(updatedProduct);
+      } else {
+        // Create new product
+        const product = new Product(productData);
+        const savedProduct = await product.save();
+        products.push(savedProduct);
+      }
     }
-    console.log("products", products);
 
-    return products;
+    console.log("products", products);
   } catch (error) {
     console.error("Error processing rows:", error);
     throw Error;

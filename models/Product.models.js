@@ -10,7 +10,7 @@ const ReviewSchema = new Schema({
 
 const ProductSchema = mongoose.Schema(
   {
-    user: {
+    seller: {
       type: ObjectId,
       required: true,
       ref: "Shop",
@@ -89,6 +89,11 @@ const ProductSchema = mongoose.Schema(
     salePrice: {
       type: Number,
       trim: true,
+    },
+    productType: {
+      type: String,
+      enum: ["Plant", "Tree", "Accessory", "Other"],
+      required: true,
     },
   },
   {
