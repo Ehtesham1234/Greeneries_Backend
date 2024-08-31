@@ -129,7 +129,7 @@ exports.getProducts = asyncHandler(async (req, res, next) => {
             .sort("-createdAt")
             .populate("categories");
           break;
-        case "onsale":
+        case "onSale":
           onSaleProducts = await Product.find({ isOnSale: true, productType })
             .skip(skip)
             .limit(limit)
