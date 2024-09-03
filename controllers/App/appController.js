@@ -205,12 +205,15 @@ exports.getProducts = asyncHandler(async (req, res, next) => {
 exports.getProduct = asyncHandler(async (req, res) => {
   try {
     const productId = req.params.id;
+    console.log("productId", productId);
+
     const product = await Product.findById(productId).populate("seller");
     res
       .status(200)
       .json(new ApiResponse(200, product, "product recived successfully"));
   } catch (error) {
-    throw new ApiError(400, "something went wrong");
+    console.error(error);
+    throw new ApiError(400, "something went wrong", error);
   }
 });
 
@@ -419,9 +422,11 @@ exports.deleteBuyer = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, null, "Buyer deleted successfully"));
 });
 
+//cart
 exports.addToCart = asyncHandler(async (req, res) => {
   const { productId, quantity } = req.body;
   const userId = req.user._id;
+
   // Validate quantity (only if not a wishlist item)
   if (quantity <= 0) {
     return res
@@ -479,7 +484,30 @@ exports.addToCart = asyncHandler(async (req, res) => {
   }
 
   await cart.save();
-  res.status(200).json(new ApiResponse(200, cart, "cart added successfully"));
+
+  // Find the specific product in the cart
+  const updatedCart = await Cart.findOne({ userId }).populate({
+    path: "products.productId",
+    select: "name price description image",
+  });
+
+  if (!updatedCart) {
+    throw new ApiError(404, "Cart not found");
+  }
+
+  const addedProduct = updatedCart.products.find(
+    (item) => item.productId._id.toString() === productId && !item.isWishList
+  );
+
+  res
+    .status(200)
+    .json(
+      new ApiResponse(
+        200,
+        { isSuccess: true, cart: addedProduct },
+        "Product added to cart successfully"
+      )
+    );
 });
 
 exports.getCart = asyncHandler(async (req, res) => {
@@ -487,10 +515,14 @@ exports.getCart = asyncHandler(async (req, res) => {
 
   const cart = await Cart.findOne({ userId }).populate({
     path: "products.productId",
-    select: "name price description",
+    select: "name price description image",
   });
+
   if (!cart) {
-    throw new ApiError(404, "Cart not found");
+    // Return an empty cart array instead of throwing an error
+    return res
+      .status(200)
+      .json(new ApiResponse(200, { isSuccess: true, cart: [] }, "cart list"));
   }
 
   // Filter out wishlist items
@@ -503,7 +535,8 @@ exports.getCart = asyncHandler(async (req, res) => {
 });
 
 exports.editCart = asyncHandler(async (req, res) => {
-  const { userId, productId, quantity } = req.body;
+  const userId = req.user._id;
+  const { productId, quantity } = req.body;
 
   // Validate quantity
   if (quantity <= 0) {
@@ -537,7 +570,6 @@ exports.editCart = asyncHandler(async (req, res) => {
     .status(200)
     .json(new ApiResponse(200, { isSuccess: true, cart }, "cart edited "));
 });
-
 exports.removeFromCart = asyncHandler(async (req, res) => {
   const userId = req.user._id;
   const { productId } = req.body;
@@ -545,7 +577,7 @@ exports.removeFromCart = asyncHandler(async (req, res) => {
   let cart = await Cart.findOne({ userId });
 
   if (!cart) {
-    throw new ApiError(404, "cart not found");
+    throw new ApiError(404, "Cart not found");
   }
 
   const itemIndex = cart.products.findIndex(
@@ -554,24 +586,40 @@ exports.removeFromCart = asyncHandler(async (req, res) => {
 
   if (itemIndex > -1) {
     cart.products.splice(itemIndex, 1); // Remove the item
-    await cart.save();
-    res
-      .status(200)
-      .json(
-        new ApiResponse(200, { isSuccess: true }, "Product removed from cart")
-      );
+
+    if (cart.products.length === 0) {
+      // If cart is empty, remove the cart
+      await Cart.deleteOne({ _id: cart._id });
+      res
+        .status(200)
+        .json(
+          new ApiResponse(
+            200,
+            { isSuccess: true },
+            "Product removed and cart deleted"
+          )
+        );
+    } else {
+      // Otherwise, just save the updated cart
+      await cart.save();
+      res
+        .status(200)
+        .json(
+          new ApiResponse(200, { isSuccess: true }, "Product removed from cart")
+        );
+    }
   } else {
     throw new ApiError(404, "Product not found in cart");
   }
 });
-
+//wishlist
 exports.addToWishlist = asyncHandler(async (req, res) => {
   const { productId } = req.body;
   const userId = req.user._id;
   // Fetch the product details
   const product = await Product.findOne({ _id: productId });
   if (!product) {
-    throw new ApiError(404, "Product not found for this seller");
+    throw new ApiError(404, "Product not found");
   }
 
   let cart = await Cart.findOne({ userId });
@@ -598,28 +646,57 @@ exports.addToWishlist = asyncHandler(async (req, res) => {
   }
 
   await cart.save();
-  res.status(200).json(new ApiResponse(200, cart, "added on whishlist"));
-});
 
-exports.getWishlist = asyncHandler(async (req, res) => {
-  const userId = req.user._id;
-
-  const cart = await Cart.findOne(
-    { userId },
-    { products: { $elemMatch: { isWishList: true } } }
-  ).populate("products.productId");
-
-  if (!cart || cart.products.length === 0) {
-    throw new ApiError(404, "No items found in wishlist");
+  const cartList = await Cart.findOne({ userId }).populate({
+    path: "products.productId",
+    select: "name price description image",
+  });
+  if (!cartList) {
+    throw new ApiError(404, "wishlist not found");
   }
+
+  // Filter out wishlist items
+  // const cartItems = cartList.products.filter((item) => item.isWishList);
+  const cartItems = cartList.products.find(
+    (item) => item.productId._id.toString() === productId && item.isWishList
+  );
 
   res
     .status(200)
     .json(
       new ApiResponse(
         200,
-        { isSuccess: true, wishlist: cart.products },
-        "wishlist"
+        { isSuccess: true, wishlist: cartItems },
+        "added on whishlist"
+      )
+    );
+});
+
+exports.getWishlist = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+
+  const cart = await Cart.findOne({ userId }).populate({
+    path: "products.productId",
+    select: "name price description image",
+  });
+
+  if (!cart) {
+    // Return an empty cart array instead of throwing an error
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(200, { isSuccess: true, wishlist: [] }, "wishlist list")
+      );
+  }
+  // Filter out wishlist items
+  const cartItems = cart.products.filter((item) => item.isWishList);
+  res
+    .status(200)
+    .json(
+      new ApiResponse(
+        200,
+        { isSuccess: true, wishlist: cartItems },
+        "wish list"
       )
     );
 });
@@ -628,21 +705,43 @@ exports.removeFromWishlist = asyncHandler(async (req, res) => {
   const userId = req.user._id;
   const { productId } = req.body;
   let cart = await Cart.findOne({ userId });
-
+  console.log("userId", userId);
+  console.log("productId", productId);
   if (!cart) {
-    throw new ApiError(404, "cart not found");
+    throw new ApiError(404, "wishlist not found");
   }
 
   const itemIndex = cart.products.findIndex(
     (item) => item.productId.toString() === productId && item.isWishList
   );
-
   if (itemIndex > -1) {
     cart.products.splice(itemIndex, 1); // Remove the item
-    await cart.save();
-    res
-      .status(200)
-      .json(new ApiResponse(200, { isSuccess: true }, "wishlist removed"));
+
+    if (cart.products.length === 0) {
+      // If cart is empty, remove the cart
+      await Cart.deleteOne({ _id: cart._id });
+      res
+        .status(200)
+        .json(
+          new ApiResponse(
+            200,
+            { isSuccess: true },
+            "Product removed and wishlist deleted"
+          )
+        );
+    } else {
+      // Otherwise, just save the updated cart
+      await cart.save();
+      res
+        .status(200)
+        .json(
+          new ApiResponse(
+            200,
+            { isSuccess: true },
+            "Product removed from wishlist"
+          )
+        );
+    }
   } else {
     throw new ApiError(404, "Product not found in wishlist");
   }
@@ -777,9 +876,27 @@ exports.createBlog = asyncHandler(async (req, res) => {
   }
 });
 
+exports.getBlogs = asyncHandler(async (req, res) => {
+  try {
+    const { page = 1, limit = 10 } = req.query;
+
+    // Pagination
+    const skip = (page - 1) * limit;
+    const blogs = await Blog.find()
+      .populate("author", "userName")
+      .skip(skip)
+      .limit(limit)
+      .select(" -content");
+    res.status(200).json(new ApiResponse(200, blogs));
+  } catch (error) {
+    res.status(500).json(new ApiError(500, error.message));
+  }
+});
+
 exports.getBlog = asyncHandler(async (req, res) => {
   try {
-    const blogs = await Blog.find().populate("author", "userName");
+    const { id } = req.params;
+    const blogs = await Blog.findById(id).populate("author", "userName");
     res.status(200).json(new ApiResponse(200, blogs));
   } catch (error) {
     res.status(500).json(new ApiError(500, error.message));

@@ -12,27 +12,28 @@ exports.verifyToken = (role) => async (req, res, next) => {
     token = req.headers.authorization.split(" ")[1];
   }
 
-  // console.log("token", token);
   if (!token) {
     return res.status(403).send("A token is required for authentication");
   }
 
   try {
     const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
-    // console.log("decoded", decoded);
 
     const user = await User.findById(decoded._id).populate("role");
-    // console.log("user", user);
-    // console.log(" user.role.name", user.role.name);
-    // console.log(" role", role);
-    if (!user || user.role.name !== role) {
-      return res.status(401).send("Invalid role or user not found");
+    if (!user) {
+      return res.status(404).send("User not found");
+    }
+    if (user.role.name !== role) {
+      return res.status(403).send("Invalid role");
     }
 
     req.user = user;
     next();
   } catch (err) {
+    if (err.name === "TokenExpiredError") {
+      return res.status(401).send("Token has expired");
+    }
     console.error("Token verification error:", err);
-    return res.status(401).send(`Invalid Token: ${err.message}`);
+    return res.status(403).send(`Invalid Token: ${err.message}`);
   }
 };

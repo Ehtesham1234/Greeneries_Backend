@@ -226,7 +226,7 @@ exports.userVerification = asyncHandler(async (req, res, next) => {
 exports.userSignIn = asyncHandler(async (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    throw new ApiError(400, "All fields are required", {
+    throw new ApiError(403, "All fields are required", {
       errors: errors.array(),
     });
   }
@@ -242,7 +242,7 @@ exports.userSignIn = asyncHandler(async (req, res, next) => {
   }
 
   if (!user) {
-    throw new ApiError(400, "User not found");
+    throw new ApiError(403, "User not found");
   }
 
   // Check if user is verified
@@ -295,11 +295,11 @@ exports.userSignIn = asyncHandler(async (req, res, next) => {
   const isPasswordValid = await user.isPasswordCorrect(password);
 
   if (!isPasswordValid) {
-    throw new ApiError(401, "Invalid user credentials");
+    throw new ApiError(403, "Invalid user credentials");
   }
 
   if (user.role._id.toString() !== roleObject._id.toString()) {
-    throw new ApiError(401, "User not authorized");
+    throw new ApiError(403, "User not authorized");
   }
 
   const { accessToken, refreshToken } = await generateAccessAndRefereshTokens(
@@ -363,13 +363,16 @@ exports.logoutUser = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, {}, "User logged Out"));
 });
 
+// Refresh Access Token
 exports.refreshAccessToken = asyncHandler(async (req, res) => {
   const incomingRefreshToken =
     req.cookies.refreshToken || req.body.refreshToken;
-  console.log("incomingRefreshToken", incomingRefreshToken);
+  console.log("Incoming refresh token:", incomingRefreshToken);
 
   if (!incomingRefreshToken) {
-    throw new ApiError(401, "unauthorized request");
+    return res
+      .status(401)
+      .send("Unauthorized request: No refresh token provided");
   }
 
   try {
@@ -377,36 +380,31 @@ exports.refreshAccessToken = asyncHandler(async (req, res) => {
       incomingRefreshToken,
       process.env.REFRESH_TOKEN_SECRET
     );
+    console.log("Decoded refresh token:", decodedToken);
 
     const user = await User.findById(decodedToken?._id);
-
     if (!user) {
-      throw new ApiError(401, "Invalid refresh token");
+      return res.status(404).send("User not found");
     }
-    console.log("user?.refreshToken", user?.refreshToken);
 
     if (incomingRefreshToken !== user?.refreshToken) {
-      throw new ApiError(401, "Refresh token is expired or used");
+      return res.status(401).send("Refresh token is expired or used");
     }
 
     const options = {
       httpOnly: true,
       secure: true,
     };
-    console.log(process.env.REFRESH_TOKEN_SECRET);
-    console.log(process.env.ACCESS_TOKEN_SECRET);
-    console.log("incomingRefreshToken", incomingRefreshToken);
 
     const { accessToken, refreshToken } = await generateAccessAndRefereshTokens(
       user._id
     );
-    console.log("accessToken, refreshToken", {
-      accessToken,
-      refreshToken,
-    });
+    console.log("New tokens:", { accessToken, refreshToken });
+
     user.isLoggedIn = true;
     user.refreshToken = refreshToken;
     await user.save();
+
     return res
       .status(200)
       .cookie("accessToken", { token: accessToken }, options)
@@ -419,7 +417,11 @@ exports.refreshAccessToken = asyncHandler(async (req, res) => {
         )
       );
   } catch (error) {
-    throw new ApiError(401, error?.message || "Invalid refresh token");
+    if (error.name === "TokenExpiredError") {
+      return res.status(401).send("Refresh token has expired");
+    }
+    console.error("Refresh token error:", error);
+    return res.status(403).send(`Invalid refresh token: ${error.message}`);
   }
 });
 

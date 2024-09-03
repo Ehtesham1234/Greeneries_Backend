@@ -25,7 +25,8 @@ router
   .get("/user/wishlist", verifyUser, appController.getWishlist)
   .post("/user/wishlist/remove", verifyUser, appController.removeFromWishlist)
   .post("/blogs", verifyUser, appController.createBlog)
-  .get("/blogs", verifyUser, appController.getBlog)
+  .get("/blogs", verifyUser, appController.getBlogs)
+  .get("/blog/:id", verifyUser, appController.getBlog)
   .post("/blogs/:id/like", verifyUser, appController.likeBlog)
   .post("/blogs/:id/save", verifyUser, appController.saveBlog);
 
