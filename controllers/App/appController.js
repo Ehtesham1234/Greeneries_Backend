@@ -224,7 +224,7 @@ exports.getuser = asyncHandler(async (req, res) => {
 
   const foundUser = await User.findOne({ _id: user._id })
     .populate("role")
-    .populate("buyer")
+    // .populate("buyer")
     .select("-password -refreshToken");
 
   if (!foundUser) {
@@ -322,10 +322,15 @@ exports.editUser = asyncHandler(async (req, res) => {
     user.buyer.push(buyer._id);
     await user.save();
   }
-
+  const userDetails = await User.findById(req.user._id)
+    .populate("role")
+    .populate("buyer")
+    .select("-password -refreshToken");
   res
     .status(200)
-    .json(new ApiResponse(200, { user }, "User profile updated successfully"));
+    .json(
+      new ApiResponse(200, { userDetails }, "User profile updated successfully")
+    );
 });
 //edit and create buyer
 exports.editBuyer = asyncHandler(async (req, res) => {
@@ -870,7 +875,11 @@ exports.createBlog = asyncHandler(async (req, res) => {
       image: fileData,
     });
     await blog.save();
-    res.status(201).json(new ApiResponse(201, blog));
+    // Populate the author field with userName
+    const populatedBlog = await Blog.findById(blog._id)
+      .populate("author", "userName")
+      .exec();
+    res.status(201).json(new ApiResponse(201, populatedBlog));
   } catch (error) {
     res.status(500).json(new ApiError(500, error.message));
   }
@@ -903,6 +912,21 @@ exports.getBlog = asyncHandler(async (req, res) => {
   }
 });
 
+//get user blog
+
+exports.getBlogOfUser = asyncHandler(async (req, res) => {
+  try {
+    const id = req.user_id;
+    const blogs = await Blog.find({ author: id }).populate(
+      "author",
+      "userName"
+    );
+    res.status(200).json(new ApiResponse(200, blogs));
+  } catch (error) {
+    res.status(500).json(new ApiError(500, error.message));
+  }
+});
+
 exports.likeBlog = asyncHandler(async (req, res) => {
   try {
     const blog = await Blog.findById(req.params.id);
@@ -929,6 +953,7 @@ exports.likeBlog = asyncHandler(async (req, res) => {
     res.status(500).json(new ApiError(500, error.message));
   }
 });
+
 exports.saveBlog = asyncHandler(async (req, res) => {
   try {
     const blog = await Blog.findById(req.params.id);

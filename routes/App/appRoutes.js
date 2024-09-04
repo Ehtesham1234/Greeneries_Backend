@@ -27,6 +27,7 @@ router
   .post("/blogs", verifyUser, appController.createBlog)
   .get("/blogs", verifyUser, appController.getBlogs)
   .get("/blog/:id", verifyUser, appController.getBlog)
+  .get("/blog/user", verifyUser, appController.getBlogOfUser)
   .post("/blogs/:id/like", verifyUser, appController.likeBlog)
   .post("/blogs/:id/save", verifyUser, appController.saveBlog);
 
