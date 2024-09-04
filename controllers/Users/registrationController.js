@@ -118,7 +118,7 @@ exports.userRegistration = asyncHandler(async (req, res, nex) => {
   }
 
   const roleObject = await Role.findOne({ id: 3 });
-  console.log("roleObject", roleObject);
+  // console.log("roleObject", roleObject);
 
   // Generate OTP and expiry time
   const otp = crypto.randomBytes(3).toString("hex");
@@ -161,7 +161,7 @@ exports.userRegistration = asyncHandler(async (req, res, nex) => {
 exports.userVerification = asyncHandler(async (req, res, next) => {
   const { phoneNumber, email, otpVerificationCode } = req.body;
   const roleObject = await Role.findOne({ id: 3 });
-  console.log("roleObject", roleObject);
+  // console.log("roleObject", roleObject);
   // Fetch user details
   let user;
   if (email) {
@@ -367,7 +367,7 @@ exports.logoutUser = asyncHandler(async (req, res) => {
 exports.refreshAccessToken = asyncHandler(async (req, res) => {
   const incomingRefreshToken =
     req.cookies.refreshToken || req.body.refreshToken;
-  console.log("Incoming refresh token:", incomingRefreshToken);
+  // console.log("Incoming refresh token:", incomingRefreshToken);
 
   if (!incomingRefreshToken) {
     return res
@@ -380,7 +380,7 @@ exports.refreshAccessToken = asyncHandler(async (req, res) => {
       incomingRefreshToken,
       process.env.REFRESH_TOKEN_SECRET
     );
-    console.log("Decoded refresh token:", decodedToken);
+    // console.log("Decoded refresh token:", decodedToken);
 
     const user = await User.findById(decodedToken?._id);
     if (!user) {
@@ -399,7 +399,7 @@ exports.refreshAccessToken = asyncHandler(async (req, res) => {
     const { accessToken, refreshToken } = await generateAccessAndRefereshTokens(
       user._id
     );
-    console.log("New tokens:", { accessToken, refreshToken });
+    // console.log("New tokens:", { accessToken, refreshToken });
 
     user.isLoggedIn = true;
     user.refreshToken = refreshToken;

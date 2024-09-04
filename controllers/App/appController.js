@@ -220,7 +220,7 @@ exports.getProduct = asyncHandler(async (req, res) => {
 //getting details of users
 exports.getuser = asyncHandler(async (req, res) => {
   const user = req.user;
-  console.log("user", user);
+  // console.log("user", user);
 
   const foundUser = await User.findOne({ _id: user._id })
     .populate("role")
