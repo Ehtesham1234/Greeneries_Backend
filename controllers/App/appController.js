@@ -864,6 +864,7 @@ exports.createBlog = asyncHandler(async (req, res) => {
           await unlinkAsync(tempFilePath);
         }
         res.status(500);
+        console.log("error", error);
         throw new ApiError(500, "Image could not be uploaded");
       }
     }
@@ -881,6 +882,7 @@ exports.createBlog = asyncHandler(async (req, res) => {
       .exec();
     res.status(201).json(new ApiResponse(201, populatedBlog));
   } catch (error) {
+    console.log("error", error);
     res.status(500).json(new ApiError(500, error.message));
   }
 });
