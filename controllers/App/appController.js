@@ -2,7 +2,6 @@ const { asyncHandler } = require("../../utils/asyncHandler");
 const { ApiError } = require("../../utils/ApiError");
 const { ApiResponse } = require("../../utils/ApiResponse");
 const PlantCategory = require("../../models/PlantCategory.models");
-// const { getPlantInfo } = require("../../utils/PlantsApiService");
 const User = require("../../models/User.models");
 const Product = require("../../models/Product.models");
 const Shop = require("../../models/Shop.models");
@@ -13,6 +12,7 @@ const { uploadOnCloudinary } = require("../../utils/cloudinary");
 const { promisify } = require("util");
 const fs = require("fs");
 const path = require("path");
+const identifyPlantByImage = require("../../utils/identifyPlantByImage");
 const writeFileAsync = promisify(fs.writeFile);
 const unlinkAsync = promisify(fs.unlink);
 const fsExistsAsync = promisify(fs.exists);
@@ -223,9 +223,11 @@ exports.getuser = asyncHandler(async (req, res) => {
   // console.log("user", user);
 
   const foundUser = await User.findOne({ _id: user._id })
-    .populate("role")
+    // .populate("role")
     // .populate("buyer")
-    .select("-password -refreshToken");
+    .select(
+      "-password -refreshToken -savedBlogs -otpVerificationCode -otpCodeExpiration -isLoggedIn -isPhoneVerified -isEmailVerified -oauthId -location -likedBlogs -buyer -shop -role"
+    );
 
   if (!foundUser) {
     throw new ApiError(400, "User not found");
@@ -323,9 +325,11 @@ exports.editUser = asyncHandler(async (req, res) => {
     await user.save();
   }
   const userDetails = await User.findById(req.user._id)
-    .populate("role")
-    .populate("buyer")
-    .select("-password -refreshToken");
+    // .populate("role")
+    // .populate("buyer")
+    .select(
+      "-password -refreshToken -savedBlogs -otpVerificationCode -otpCodeExpiration -isLoggedIn -isPhoneVerified -isEmailVerified -oauthId -location -likedBlogs -buyer -shop -role"
+    );
   res
     .status(200)
     .json(
@@ -424,7 +428,20 @@ exports.deleteBuyer = asyncHandler(async (req, res) => {
 
   res
     .status(200)
-    .json(new ApiResponse(200, null, "Buyer deleted successfully"));
+    .json(new ApiResponse(200, buyerId, "Buyer deleted successfully"));
+});
+
+//getting details of buyers
+exports.getbuyers = asyncHandler(async (req, res) => {
+  const user = req.user;
+  // console.log("user", user);
+
+  const foundUser = await Buyer.find({ user: user._id });
+
+  if (!foundUser) {
+    throw new ApiError(400, "User not found");
+  }
+  res.status(200).json(new ApiResponse(200, foundUser));
 });
 
 //cart
@@ -975,4 +992,69 @@ exports.saveBlog = asyncHandler(async (req, res) => {
   } catch (error) {
     res.status(500).json(new ApiError(500, error.message));
   }
+});
+
+//search by query or image
+exports.searchProducts = asyncHandler(async (req, res) => {
+  const { query, imageBase64 } = req.body;
+  console.log(query);
+  if (!query && !imageBase64) {
+    return res.status(400).json({ message: "Query or image is required" });
+  }
+
+  // Step 1: Handle Image Search
+  if (imageBase64) {
+    try {
+      const plantDetails = await identifyPlantByImage(imageBase64);
+      const plantSuggestions = plantDetails.results || [];
+
+      if (plantSuggestions.length > 0) {
+        const commonNames = plantSuggestions.flatMap(
+          (s) => s.species.commonNames || []
+        );
+
+        // Search for products by each common name
+        const foundProducts = await Product.find({
+          name: { $in: commonNames.map((name) => new RegExp(name, "i")) },
+        }).limit(1);
+
+        if (foundProducts.length > 0) {
+          return res.status(200).json({ products: foundProducts });
+        } else {
+          return res.status(200).json({
+            products: [],
+            message: `No products found for common names: ${commonNames.join(
+              ", "
+            )}`,
+          });
+        }
+      } else {
+        return res.status(200).json({
+          products: [],
+          message: "No common names identified from image",
+        });
+      }
+    } catch (error) {
+      return res
+        .status(500)
+        .json({ message: "Error identifying plant by image" });
+    }
+  }
+
+  // Step 2: Handle Text-based Search
+  const searchQuery = query.trim();
+  const categories = await PlantCategory.find({
+    name: { $regex: searchQuery, $options: "i" },
+  }).select("_id");
+
+  const categoryIds = categories.map((category) => category._id);
+
+  const products = await Product.find({
+    $or: [
+      { name: { $regex: searchQuery, $options: "i" } },
+      { categories: { $in: categoryIds } },
+    ],
+  }).limit(1);
+
+  return res.status(200).json({ products });
 });

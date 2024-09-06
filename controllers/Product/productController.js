@@ -6,7 +6,6 @@ const { fileSizeFormatter } = require("../../utils/fileUploads");
 const { asyncHandler } = require("../../utils/asyncHandler");
 const { ApiError } = require("../../utils/ApiError");
 const { ApiResponse } = require("../../utils/ApiResponse");
-const { getPlantInfo } = require("../../utils/PlantsApiService");
 const {
   uploadOnCloudinary,
   removeFromCloudinary,
