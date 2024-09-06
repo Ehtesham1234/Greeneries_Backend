@@ -1016,7 +1016,7 @@ exports.searchProducts = asyncHandler(async (req, res) => {
         // Search for products by each common name
         const foundProducts = await Product.find({
           name: { $in: commonNames.map((name) => new RegExp(name, "i")) },
-        }).limit(1);
+        }).limit(10);
 
         if (foundProducts.length > 0) {
           return res.status(200).json({ products: foundProducts });
@@ -1036,7 +1036,7 @@ exports.searchProducts = asyncHandler(async (req, res) => {
       }
     } catch (error) {
       return res
-        .status(500)
+        .status(404)
         .json({ message: "Error identifying plant by image" });
     }
   }
@@ -1054,7 +1054,7 @@ exports.searchProducts = asyncHandler(async (req, res) => {
       { name: { $regex: searchQuery, $options: "i" } },
       { categories: { $in: categoryIds } },
     ],
-  }).limit(1);
+  }).limit(10);
 
   return res.status(200).json({ products });
 });
