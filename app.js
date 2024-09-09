@@ -179,18 +179,20 @@ app.use("/api", productRoutes.router);
 app.use("/google", oAuthRoutes.router);
 //Roles
 
-app.use((req, res, next) => {
-  next(createError.NotFound());
-});
+// app.use((req, res, next) => {
+//   next(createError.NotFound());
+// });
 
 app.use((err, req, res, next) => {
   if (err instanceof ApiError) {
+    console.error("Internal Server Error:", err);
     res.status(err.statusCode).json({
       status: err.statusCode,
       message: err.message,
       errors: err.errors,
     });
   } else {
+    console.error("Internal Server Error:", err);
     res.status(500).json({
       status: 500,
       message: "Internal Server Error",

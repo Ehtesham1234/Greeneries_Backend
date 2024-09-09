@@ -234,7 +234,34 @@ exports.getuser = asyncHandler(async (req, res) => {
   }
   res.status(200).json(new ApiResponse(200, foundUser));
 });
+//update location
 
+// In your controller file
+exports.updateLocation = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+  const { latitude, longitude } = req.body;
+
+  if (!latitude || !longitude) {
+    throw new ApiError(400, "Latitude and Longitude are required");
+  }
+
+  const updatedUser = await User.findByIdAndUpdate(
+    userId,
+    {
+      location: {
+        type: "Point",
+        coordinates: [longitude, latitude],
+      },
+    },
+    { new: true }
+  );
+
+  if (!updatedUser) {
+    throw new ApiError(404, "User not found");
+  }
+
+  res.status(200).json(new ApiResponse(200, updatedUser));
+});
 //user update
 exports.editUser = asyncHandler(async (req, res) => {
   const userId = req.user._id;
@@ -997,7 +1024,8 @@ exports.saveBlog = asyncHandler(async (req, res) => {
 //search by query or image
 exports.searchProducts = asyncHandler(async (req, res) => {
   const { query, imageBase64 } = req.body;
-  console.log(query);
+  // console.log("imageBase64", imageBase64);
+
   if (!query && !imageBase64) {
     return res.status(400).json({ message: "Query or image is required" });
   }
@@ -1057,4 +1085,76 @@ exports.searchProducts = asyncHandler(async (req, res) => {
   }).limit(10);
 
   return res.status(200).json({ products });
+});
+
+//shops
+exports.getShops = asyncHandler(async (req, res) => {
+  try {
+    let { location, shopPage = 1, limit = 10, maxDistance = 5000 } = req.query;
+    console.log("body", req.query);
+
+    // Parse the query parameters as integers
+    shopPage = parseInt(shopPage, 10);
+    limit = parseInt(limit, 10);
+    maxDistance = parseInt(maxDistance, 10);
+
+    let shops;
+
+    if (location) {
+      const coordinates = JSON.parse(location).coordinates;
+      shops = await Shop.aggregate([
+        {
+          $geoNear: {
+            near: { type: "Point", coordinates: coordinates },
+            distanceField: "distance",
+            maxDistance: maxDistance,
+            spherical: true,
+          },
+        },
+        { $sort: { distance: 1 } }, // Sort by distance
+        { $skip: (shopPage - 1) * limit },
+        { $limit: limit },
+      ]);
+
+      // If no shops found within maxDistance, fetch nearby shops without distance constraint
+      if (!shops || shops.length === 0) {
+        shops = await Shop.aggregate([
+          {
+            $geoNear: {
+              near: { type: "Point", coordinates: coordinates },
+              distanceField: "distance",
+              spherical: true,
+            },
+          },
+          { $sort: { distance: 1 } }, // Sort by distance
+          { $skip: (shopPage - 1) * limit },
+          { $limit: limit },
+        ]);
+      }
+    } else {
+      shops = await Shop.find()
+        .skip((shopPage - 1) * limit)
+        .limit(limit);
+    }
+
+    if (!shops || shops.length === 0) {
+      throw new ApiError(400, "No shops found");
+    }
+    // console.log("shops", shops);
+    res.status(200).json(new ApiResponse(200, shops, "Shop list fetched"));
+  } catch (error) {
+    console.log("error", error);
+    throw new ApiError(500, "server error");
+  }
+});
+
+exports.getShopProducts = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const products = await Product.find({ seller: id });
+  if (!products || products.length === 0) {
+    throw new ApiError(400, "No products found");
+  }
+  res
+    .status(200)
+    .json(new ApiResponse(200, products, "Products list fetched shop wise"));
 });

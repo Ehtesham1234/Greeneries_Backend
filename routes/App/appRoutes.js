@@ -14,6 +14,7 @@ router
   .get("/products", verifyUser, appController.getProducts)
   .get("/product/:id", verifyUser, appController.getProduct)
   .get("/getuser", verifyUser, appController.getuser)
+  .patch("/update-location", verifyUser, appController.updateLocation)
   .patch("/user", verifyUser, appController.editUser)
   .post("/user/buyer", verifyUser, appController.editBuyer)
   .delete("/user/buyer", verifyUser, appController.deleteBuyer)
@@ -31,8 +32,8 @@ router
   .get("/blog/user", verifyUser, appController.getBlogOfUser)
   .post("/blogs/:id/like", verifyUser, appController.likeBlog)
   .post("/blogs/:id/save", verifyUser, appController.saveBlog)
-
-  //search
-  .post("/product/search", verifyUser, appController.searchProducts);
+  .post("/product/search", verifyUser, appController.searchProducts)
+  .get("/shops", verifyUser, appController.getShops)
+  .get("/shops/:id/products", verifyUser, appController.getShopProducts);
 
 exports.router = router;
