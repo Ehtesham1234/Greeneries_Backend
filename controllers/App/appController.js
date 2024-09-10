@@ -1089,72 +1089,77 @@ exports.searchProducts = asyncHandler(async (req, res) => {
 
 //shops
 exports.getShops = asyncHandler(async (req, res) => {
-  try {
-    let { location, shopPage = 1, limit = 10, maxDistance = 5000 } = req.query;
-    console.log("body", req.query);
+  let { location, page = 1, limit = 10, maxDistance = 5000 } = req.query;
+  console.log("body", req.query);
 
-    // Parse the query parameters as integers
-    shopPage = parseInt(shopPage, 10);
-    limit = parseInt(limit, 10);
-    maxDistance = parseInt(maxDistance, 10);
+  // Parse the query parameters as integers
+  page = parseInt(page, 10);
+  limit = parseInt(limit, 10);
+  maxDistance = parseInt(maxDistance, 10);
 
-    let shops;
+  let shops;
 
-    if (location) {
-      const coordinates = JSON.parse(location).coordinates;
+  if (location) {
+    const coordinates = JSON.parse(location).coordinates;
+    shops = await Shop.aggregate([
+      {
+        $geoNear: {
+          near: { type: "Point", coordinates: coordinates },
+          distanceField: "distance",
+          maxDistance: maxDistance,
+          spherical: true,
+        },
+      },
+      { $sort: { distance: 1 } }, // Sort by distance
+      { $skip: (page - 1) * limit },
+      { $limit: limit },
+    ]);
+
+    // If no shops found within maxDistance, fetch nearby shops without distance constraint
+    if (!shops || shops.length === 0) {
       shops = await Shop.aggregate([
         {
           $geoNear: {
             near: { type: "Point", coordinates: coordinates },
             distanceField: "distance",
-            maxDistance: maxDistance,
             spherical: true,
           },
         },
         { $sort: { distance: 1 } }, // Sort by distance
-        { $skip: (shopPage - 1) * limit },
+        { $skip: (page - 1) * limit },
         { $limit: limit },
       ]);
-
-      // If no shops found within maxDistance, fetch nearby shops without distance constraint
-      if (!shops || shops.length === 0) {
-        shops = await Shop.aggregate([
-          {
-            $geoNear: {
-              near: { type: "Point", coordinates: coordinates },
-              distanceField: "distance",
-              spherical: true,
-            },
-          },
-          { $sort: { distance: 1 } }, // Sort by distance
-          { $skip: (shopPage - 1) * limit },
-          { $limit: limit },
-        ]);
-      }
-    } else {
-      shops = await Shop.find()
-        .skip((shopPage - 1) * limit)
-        .limit(limit);
     }
-
-    if (!shops || shops.length === 0) {
-      throw new ApiError(400, "No shops found");
-    }
-    // console.log("shops", shops);
-    res.status(200).json(new ApiResponse(200, shops, "Shop list fetched"));
-  } catch (error) {
-    console.log("error", error);
-    throw new ApiError(500, "server error");
+  } else {
+    shops = await Shop.find()
+      .skip((page - 1) * limit)
+      .limit(limit);
   }
+
+  if (!shops || shops.length === 0) {
+    return res.status(200).json(new ApiResponse(200, [], "No more shops"));
+  }
+
+  // console.log("shops", shops);
+  return res.status(200).json(new ApiResponse(200, shops, "Shop list fetched"));
 });
 
 exports.getShopProducts = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-  const products = await Product.find({ seller: id });
+  // const { id } = req.params;
+  let { id, page = 1, limit = 10 } = req.query;
+  console.log("req.query", req.query);
+
+  // Parse the query parameters as integers
+  page = parseInt(page, 10);
+  limit = parseInt(limit, 10);
+
+  const products = await Product.find({ seller: id })
+    .skip((page - 1) * limit)
+    .limit(limit);
   if (!products || products.length === 0) {
-    throw new ApiError(400, "No products found");
+    return res.status(200).json(new ApiResponse(200, [], "No more products"));
   }
-  res
+  return res
     .status(200)
     .json(new ApiResponse(200, products, "Products list fetched shop wise"));
 });

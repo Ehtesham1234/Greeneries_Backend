@@ -34,6 +34,6 @@ router
   .post("/blogs/:id/save", verifyUser, appController.saveBlog)
   .post("/product/search", verifyUser, appController.searchProducts)
   .get("/shops", verifyUser, appController.getShops)
-  .get("/shops/:id/products", verifyUser, appController.getShopProducts);
+  .get("/shops/products", verifyUser, appController.getShopProducts);
 
 exports.router = router;
