@@ -11,11 +11,9 @@ const roleRoute = require("./routes/roles/rolesRoute");
 const productRoutes = require("./routes/product/productRoutes");
 const oAuthRoutes = require("./routes/Users/oAuthRoutes");
 const Role = require("./models/roles/roles.models");
+const Message = require("./models/Message.models");
 const appRoute = require("./routes/App/appRoutes");
-const City = require("./models/City.model");
-const State = require("./models/State.model");
-const cityArray = require("./utils/city");
-const stateArray = require("./utils/state");
+const messageRoute = require("./routes/message/messageRoutes");
 const cors = require("cors");
 const path = require("path");
 const { dirname } = require("path");
@@ -23,10 +21,13 @@ const passport = require("passport");
 const { engine } = require("express-handlebars");
 const cookieParser = require("cookie-parser");
 const { ApiError } = require("./utils/ApiError");
+const http = require("http");
+const { Server } = require("socket.io");
+const { handleSocketConnection } = require("./services/socket");
 connectDB();
 
 const app = express();
-
+const server = http.createServer(app);
 const roles = [
   { id: 1, name: "superadmin" },
   { id: 2, name: "admin" },
@@ -49,82 +50,6 @@ Role.countDocuments({})
     console.log("error", error);
   });
 
-// insert states
-State.countDocuments({})
-  .exec()
-  .then((count) => {
-    if (count === 0) {
-      insertStateData(stateArray);
-    } else {
-      console.log("States already exist in the database.");
-    }
-  })
-
-  .catch((err) => {
-    console.error("Error:", err);
-  })
-  .finally(() => {});
-
-// insert city
-City.countDocuments({})
-  .exec()
-  .then((count) => {
-    if (count === 0) {
-      insertCityData(cityArray);
-    } else {
-      console.log("cities already exist in the database.");
-    }
-  })
-
-  .catch((err) => {
-    console.error("Error:", err);
-  })
-  .finally(() => {});
-
-// insert state data in state table
-const insertStateData = async (data) => {
-  try {
-    // Insert the data into the 'state' collection
-    await State.insertMany(data);
-    console.log("State Data inserted successfully");
-  } catch (error) {
-    console.error("Error inserting State data:", error);
-  }
-};
-
-// insert city data in table
-const insertCityData = async (cityData) => {
-  try {
-    // Insert the data into the 'city' collection
-    await City.insertMany(cityData);
-    console.log("City data inserted successfully");
-  } catch (error) {
-    console.error("Error inserting city data:", error);
-  }
-};
-
-// delete all state
-const deleteAllStateData = async () => {
-  try {
-    // Delete all documents from the 'state' collection
-    await State.deleteMany({});
-    console.log("All data deleted successfully");
-  } catch (error) {
-    console.error("Error deleting data:", error);
-  }
-};
-
-// delete all city
-const deleteAllCityData = async () => {
-  try {
-    // Delete all documents from the 'state' collection
-    await City.deleteMany({});
-    console.log("All data deleted successfully");
-  } catch (error) {
-    console.error("Error deleting data:", error);
-  }
-};
-
 // Set CORS headers to allow requests from http://127.0.0.1:5173
 app.use(
   cors({
@@ -145,6 +70,7 @@ app.use(
     secret: "your_secret_key",
     resave: false,
     saveUninitialized: true,
+    cookie: { secure: true }, // Remember to use secure cookies
   })
 );
 app.use(passport.initialize());
@@ -157,14 +83,6 @@ app.engine("handlebars", engine());
 app.set("view engine", "handlebars");
 // Set views directory
 app.set("views", path.join(__dirname, "views"));
-app.use(
-  session({
-    secret: "your_secret_key",
-    resave: false,
-    saveUninitialized: true,
-    cookie: { secure: true }, // Remember to use secure cookies
-  })
-);
 
 //sales k trending k liye 24 hours cron
 // require("./services/cronJobs");
@@ -177,11 +95,22 @@ app.use("/api", shopRoute.router);
 app.use("/api/roles", roleRoute.router);
 app.use("/api", productRoutes.router);
 app.use("/google", oAuthRoutes.router);
-//Roles
+app.use("/api", messageRoute.router);
 
-// app.use((req, res, next) => {
-//   next(createError.NotFound());
-// });
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST", "OPTIONS", "PUT", "PATCH", "DELETE"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
+  },
+});
+handleSocketConnection(io); // Use the socket logic from the new file
+
+// Serve index.html file
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "index.html"));
+});
 
 app.use((err, req, res, next) => {
   if (err instanceof ApiError) {
@@ -203,4 +132,4 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 8000;
-app.listen(PORT, () => console.log(`🚀 @ http://localhost:${PORT}`));
+server.listen(PORT, () => console.log(`🚀 @ http://localhost:${PORT}`));

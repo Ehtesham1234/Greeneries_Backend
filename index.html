@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Socket.IO Test</title>
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+  </head>
+  <body>
+    <h1>Socket.IO Test</h1>
+
+    <input type="text" id="messageInput" placeholder="Type a message" />
+    <input type="text" id="messageInputId" placeholder="Send to" />
+    <button id="sendMessage">Send Message</button>
+
+    <div id="messages"></div>
+    <!-- Container to display messages -->
+
+    <script>
+      const socket = io("http://localhost:4000");
+
+      socket.on("connect", () => {
+        console.log("Connected to the server");
+
+        // Prompt for a user ID
+        // const userId = prompt("Enter your user ID:");
+        socket.emit("join", "66d0afc9893df0d8c677eccf");
+
+        // Listen for messages
+        socket.on("message", (message) => {
+          console.log("New message received:", message);
+          displayMessage(message); // Display the received message
+        });
+
+        // Listen for notifications
+        socket.on("notification", (notification) => {
+          console.log("New notification received:", notification);
+        });
+      });
+
+      // Send a message when the button is clicked
+      document.getElementById("sendMessage").addEventListener("click", () => {
+        const messageText = document.getElementById("messageInput").value;
+        const receiverId = document.getElementById("messageInputId").value;
+        // const userId = prompt("Enter your user ID:"); // Prompt for sender ID
+        socket.emit("event:message", {
+          text: messageText,
+          sender: "66d0afc9893df0d8c677eccf",
+          receiver: receiverId,
+          name: "seller 10",
+        });
+      });
+
+      // Function to display messages
+      function displayMessage(message) {
+        const messagesContainer = document.getElementById("messages");
+        const messageElement = document.createElement("div");
+        messageElement.textContent = message;
+        messagesContainer.appendChild(messageElement);
+      }
+    </script>
+  </body>
+</html>

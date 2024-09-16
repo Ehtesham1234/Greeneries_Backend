@@ -2,3 +2,5 @@
 node_modules/
 dist
 .env
+serviceAccount.json
+firebase-messaging-sw.js
