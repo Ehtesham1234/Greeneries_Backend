@@ -2,8 +2,6 @@ const admin = require("firebase-admin");
 const Message = require("../models/Message.models");
 
 // Initialize Firebase Admin SDK
-// const serviceAccount = require("../serviceAccountKey.json");
-
 const serviceAccount = {
   type: process.env.GOOGLE_TYPE,
   project_id: process.env.GOOGLE_PROJECT_ID,
@@ -18,17 +16,32 @@ const serviceAccount = {
   universe_domain: process.env.GOOGLE_UNIVERSE_DOMAIN,
 };
 
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-});
+let fcmInitialized = false;
 
-// FCM Push Notification Sender (modularized)
+try {
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+  });
+  fcmInitialized = true;
+  console.log("Firebase Admin SDK initialized successfully");
+} catch (error) {
+  console.error("Error initializing Firebase Admin SDK:", error);
+}
+
+// FCM Push Notification Sender
 const sendPushNotification = async (fcmToken, notification) => {
-  console.log("Sending notification with token:", fcmToken);
+  if (!fcmInitialized) {
+    console.error(
+      "Firebase Admin SDK not initialized. Skipping push notification."
+    );
+    return;
+  }
+
   if (!fcmToken) {
     console.error("FCM Token is required but was not provided.");
     return;
   }
+
   const message = {
     token: fcmToken,
     notification: {
@@ -42,9 +55,9 @@ const sendPushNotification = async (fcmToken, notification) => {
 
   try {
     const response = await admin.messaging().send(message);
-    console.log("Successfully sent message:", response);
+    console.log("Successfully sent push notification:", response);
   } catch (error) {
-    console.error("Error sending message:", error);
+    console.error("Error sending push notification:", error);
   }
 };
 
@@ -53,17 +66,17 @@ const handleSocketConnection = (io) => {
   io.on("connection", (socket) => {
     console.log(`New client connected: ${socket.id}`);
 
-    // Handle user joining their specific room (e.g., userId as room ID)
     socket.on("join", (userId) => {
       try {
-        console.log(`User ${userId} joined room ${userId}`);
-        socket.join(userId); // Join the room for this user (typically userId or chatId)
+        console.log(
+          `User ${userId} joined room ${userId} with socket ID ${socket.id}`
+        );
+        socket.join(userId);
       } catch (error) {
         console.error("Error handling join event:", error);
       }
     });
 
-    // Handle incoming messages
     socket.on(
       "event:message",
       async ({ text, sender, receiver, name, timestamp, fcmToken }) => {
@@ -74,37 +87,41 @@ const handleSocketConnection = (io) => {
 
           const newMessage = new Message({ text, sender, receiver, timestamp });
           await newMessage.save();
+          console.log("received : ", receiver);
 
-          // Emit the message to both the sender and receiver
-          io.to(receiver)
-            .to(sender)
-            .emit("message", JSON.stringify(newMessage));
+          // Emit the message only to the receiver
+          io.to(receiver).emit("message", JSON.stringify(newMessage));
 
-          // Check if the receiver is online (based on whether the room exists or has members)
+          // Check if the receiver is online
           const receiverRoom = io.sockets.adapter.rooms.get(receiver);
-          // if (!receiverRoom || receiverRoom.size === 0) {
-          //   // Send a push notification if the receiver is not connected
-          //   await sendPushNotification(fcmToken, {
-          //     title: "New Message",
-          //     body: `You have a new message from ${name}`,
-          //   });
-          // }
+          if (!receiverRoom || receiverRoom.size === 0) {
+            // Send a push notification if the receiver is not connected
+            try {
+              if (fcmInitialized && fcmToken) {
+                await sendPushNotification(fcmToken, {
+                  title: "New Message",
+                  body: `${name}: ${text}`,
+                });
+              } else {
+                console.log(
+                  "Skipping push notification: FCM not initialized or token missing"
+                );
+              }
+            } catch (error) {
+              console.error("Error sending push notification:", error);
+              // Optionally emit an error back to the client if needed
+            }
+          }
         } catch (error) {
           console.error("Error handling message event:", error.message);
+          // You might want to emit an error event back to the sender
+          socket.emit("message:error", { message: "Failed to send message" });
         }
       }
     );
 
-    // Handle socket disconnections
     socket.on("disconnect", (reason) => {
-      console.log(`Client disconnected: ${reason}`);
-    });
-
-    // Handle nodemon restarts (gracefully disconnect clients)
-    process.once("SIGUSR2", () => {
-      console.log("Nodemon restarting, cleaning up connections.");
-      io.sockets.emit("disconnect");
-      process.kill(process.pid, "SIGUSR2");
+      console.log(`Client disconnected: ${(reason, socket.id)}`);
     });
   });
 };
