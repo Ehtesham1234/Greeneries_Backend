@@ -14,6 +14,8 @@ const Role = require("./models/roles/roles.models");
 const Message = require("./models/Message.models");
 const appRoute = require("./routes/App/appRoutes");
 const messageRoute = require("./routes/message/messageRoutes");
+const orderRoutes = require("./routes/Order/orderRoutes");
+const paymentRoutes = require("./routes/Payment/paymentRoutes");
 const cors = require("cors");
 const path = require("path");
 const { dirname } = require("path");
@@ -96,6 +98,8 @@ app.use("/api/roles", roleRoute.router);
 app.use("/api", productRoutes.router);
 app.use("/google", oAuthRoutes.router);
 app.use("/api", messageRoute.router);
+app.use("/api", orderRoutes.router);
+app.use("/api", paymentRoutes.router);
 
 const io = new Server(server, {
   cors: {

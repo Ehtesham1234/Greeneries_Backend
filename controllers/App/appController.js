@@ -226,7 +226,7 @@ exports.getuser = asyncHandler(async (req, res) => {
     // .populate("role")
     // .populate("buyer")
     .select(
-      "-password -refreshToken -savedBlogs -otpVerificationCode -otpCodeExpiration -isLoggedIn -isPhoneVerified -isEmailVerified -oauthId -location -likedBlogs -buyer -shop -role"
+      "-password -refreshToken  -otpVerificationCode -otpCodeExpiration -isLoggedIn -isPhoneVerified -isEmailVerified -oauthId -location  -buyer -shop -role"
     );
 
   if (!foundUser) {
@@ -796,75 +796,6 @@ exports.removeFromWishlist = asyncHandler(async (req, res) => {
   }
 });
 
-// exports.placeOrder = async (req, res) => {
-//   const session = await mongoose.startSession();
-//   session.startTransaction();
-
-//   try {
-//     const { userId, sellerlId, paymentType , productId} = req.body;
-
-//     // Fetch the cart for the user and hospital
-//     const cart = await Cart.findOne({ userId, sellerlId }).session(session);
-//     if (!cart || cart.items.length === 0) {
-//         await session.abortTransaction();
-//         session.endSession();
-//         return res.status(400).send({ error: 'Cart is empty' });
-//     }
-
-//     // Calculate the total amount
-//     const totalAmount = cart.items.reduce((acc, item) => acc + item.price, 0);
-
-//     // Create a new order
-//     const order = new Order({
-//         userId,
-//         sellerlId,
-//         totalAmount,
-//         status: 'pending',
-//         paymentType,
-//         paymentStatus: paymentType === 'Online' ? 'received' : 'pending',
-//         orderDate: new Date()
-//     });
-
-//     await order.save({ session });
-
-//     // Create purchased items and update medicine quantity
-//     for (const item of cart.items) {
-//         await new Purchased({
-//             orderId: order._id,
-//             productId: item.productId,
-//             sellerlId,
-//             quantity: item.quantity,
-//             price: item.price
-//         }).save({ session });
-
-//         // Decrease the quantity of the medicine
-//         const product = await Product.findById(item.productId).session(session);
-//         if (product) {
-//             if (product.quantity < item.quantity) {
-//                 await session.abortTransaction();
-//                 session.endSession();
-//                 return res.status(400).send({ error: `Insufficient quantity for medicine: ${product.name}` });
-//             }
-//             product.quantity -= item.quantity;
-//             await product.save({ session });
-//         }
-//     }
-
-//     // Clear the cart
-//     await Cart.findByIdAndDelete(cart._id).session(session);
-
-//     await session.commitTransaction();
-//     session.endSession();
-
-//     res.status(200).send({ isSuccess: true, order });
-//   } catch (error) {
-//     await session.abortTransaction();
-//     session.endSession();
-//     console.error(error);
-//     res.status(500).send({ isSuccess: false, message: "Server Error" });
-//   }
-// };
-
 //Blog
 exports.createBlog = asyncHandler(async (req, res) => {
   try {
@@ -934,7 +865,7 @@ exports.createBlog = asyncHandler(async (req, res) => {
 exports.getBlogs = asyncHandler(async (req, res) => {
   try {
     const { page = 1, limit = 10 } = req.query;
-
+    const userId = req.user._id;
     // Pagination
     const skip = (page - 1) * limit;
     const blogs = await Blog.find()
@@ -942,7 +873,14 @@ exports.getBlogs = asyncHandler(async (req, res) => {
       .skip(skip)
       .limit(limit)
       .select(" -content");
-    res.status(200).json(new ApiResponse(200, blogs));
+
+    // Add liked and saved status
+    const blogsWithStatus = blogs.map((blog) => ({
+      ...blog.toObject(),
+      isLiked: blog.likes.includes(userId),
+      isSaved: req.user.savedBlogs.includes(blog._id),
+    }));
+    res.status(200).json(new ApiResponse(200, blogsWithStatus));
   } catch (error) {
     res.status(500).json(new ApiError(500, error.message));
   }
@@ -951,8 +889,15 @@ exports.getBlogs = asyncHandler(async (req, res) => {
 exports.getBlog = asyncHandler(async (req, res) => {
   try {
     const { id } = req.params;
-    const blogs = await Blog.findById(id).populate("author", "userName");
-    res.status(200).json(new ApiResponse(200, blogs));
+    const userId = req.user._id;
+    const blog = await Blog.findById(id).populate("author", "userName");
+
+    const blogWithStatus = {
+      ...blog.toObject(),
+      isLiked: blog.likes.includes(userId),
+      isSaved: req.user.savedBlogs.includes(blog._id),
+    };
+    res.status(200).json(new ApiResponse(200, blogWithStatus));
   } catch (error) {
     res.status(500).json(new ApiError(500, error.message));
   }
@@ -1016,6 +961,32 @@ exports.saveBlog = asyncHandler(async (req, res) => {
     }
     await req.user.save();
     res.status(200).json(new ApiResponse(200, blog));
+  } catch (error) {
+    res.status(500).json(new ApiError(500, error.message));
+  }
+});
+
+// Get Liked Blogs
+exports.getLikedBlogs = asyncHandler(async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).populate("likedBlogs");
+    if (!user) {
+      return res.status(404).json(new ApiError(404, "User not found"));
+    }
+    res.status(200).json(new ApiResponse(200, user.likedBlogs));
+  } catch (error) {
+    res.status(500).json(new ApiError(500, error.message));
+  }
+});
+
+// Get Saved Blogs
+exports.getSavedBlogs = asyncHandler(async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).populate("savedBlogs");
+    if (!user) {
+      return res.status(404).json(new ApiError(404, "User not found"));
+    }
+    res.status(200).json(new ApiResponse(200, user.savedBlogs));
   } catch (error) {
     res.status(500).json(new ApiError(500, error.message));
   }

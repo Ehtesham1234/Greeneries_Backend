@@ -32,6 +32,8 @@ router
   .get("/blog/user", verifyUser, appController.getBlogOfUser)
   .post("/blogs/:id/like", verifyUser, appController.likeBlog)
   .post("/blogs/:id/save", verifyUser, appController.saveBlog)
+  .get('/blogs/liked', verifyUser, appController.getLikedBlogs)
+  .get('/blogs/saved', verifyUser, appController.getSavedBlogs)
   .post("/product/search", verifyUser, appController.searchProducts)
   .get("/shops", verifyUser, appController.getShops)
   .get("/shops/products", verifyUser, appController.getShopProducts);
