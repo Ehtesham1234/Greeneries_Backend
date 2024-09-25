@@ -3,14 +3,20 @@ const Order = require("../../models/Order.models");
 const Cart = require("../../models/Cart.models");
 const Product = require("../../models/Product.models");
 const Purchased = require("../../models/Purchased.models");
+const Razorpay = require("razorpay");
 
+const razorpay = new Razorpay({
+  key_id: process.env.RAZORPAY_KEY_ID,
+  key_secret: process.env.RAZORPAY_KEY_SECRET,
+});
 exports.placeOrder = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
 
   try {
-    const { userId, sellerId, paymentType } = req.body;
+    const { userId, buyerId, paymentType, cartData, totalAmount } = req.body;
 
+    // Validate cart
     const cart = await Cart.findOne({ userId }).session(session);
     if (!cart || cart.products.length === 0) {
       await session.abortTransaction();
@@ -18,6 +24,7 @@ exports.placeOrder = async (req, res) => {
       return res.status(400).send({ error: "Cart is empty" });
     }
 
+    // Filter out wishlist items
     const cartItems = cart.products.filter((item) => !item.isWishList);
     if (cartItems.length === 0) {
       await session.abortTransaction();
@@ -25,55 +32,62 @@ exports.placeOrder = async (req, res) => {
       return res.status(400).send({ error: "No items in cart" });
     }
 
-    const totalAmount = cartItems.reduce(
-      (acc, item) => acc + item.price * item.quantity,
-      0
+    // Fetch seller IDs
+    const sellerIds = await Promise.all(
+      cartItems.map(async (item) => {
+        const product = await Product.findById(item.productId).session(session);
+        return product.seller;
+      })
     );
 
+    // Create pending order
     const order = new Order({
-      userId,
-      sellerId,
-      products: cartItems.map((item) => item.productId),
+      userId: buyerId,
+      sellerIds: [...new Set(sellerIds)],
+      products: cartItems.map((item) => ({
+        productId: item.productId,
+        quantity: item.quantity,
+      })),
       totalAmount,
       status: "pending",
       paymentType,
-      paymentStatus: paymentType === "Online" ? "pending" : "not_applicable",
+      paymentStatus: "pending",
       orderDate: new Date(),
     });
 
-    await order.save({ session });
+    // Handle online payment
+    if (paymentType === "Online") {
+      const razorpayOrder = await razorpay.orders.create({
+        amount: totalAmount * 100, // Convert to paise
+        currency: "INR",
+        receipt: order._id.toString(),
+      });
 
-    for (const item of cartItems) {
-      await new Purchased({
-        orderId: order._id,
-        productId: item.productId,
-        sellerId,
-        quantity: item.quantity,
-        price: item.price,
-      }).save({ session });
-
-      const product = await Product.findById(item.productId).session(session);
-      if (product) {
-        if (product.quantity < item.quantity) {
-          await session.abortTransaction();
-          session.endSession();
-          return res
-            .status(400)
-            .send({
-              error: `Insufficient quantity for product: ${product.name}`,
-            });
-        }
-        product.quantity -= item.quantity;
-        await product.save({ session });
-      }
+      order.razorpayOrderId = razorpayOrder.id;
     }
 
-    await Cart.findByIdAndDelete(cart._id).session(session);
+    await order.save({ session });
+
+    // Update cart (remove non-wishlist items)
+    cart.products = cart.products.filter((item) => item.isWishList);
+    await cart.save({ session });
 
     await session.commitTransaction();
     session.endSession();
 
-    res.status(200).send({ isSuccess: true, order });
+    if (paymentType === "Online") {
+      res.status(200).send({
+        isSuccess: true,
+        order,
+        razorpayOrderId: order.razorpayOrderId,
+        amount: totalAmount * 100,
+        currency: "INR",
+      });
+    } else {
+      // For COD, confirm the order immediately
+      await confirmOrder(order._id);
+      res.status(200).send({ isSuccess: true, order });
+    }
   } catch (error) {
     await session.abortTransaction();
     session.endSession();
@@ -82,51 +96,12 @@ exports.placeOrder = async (req, res) => {
   }
 };
 
-exports.updateOrderStatus = async (req, res) => {
-  const { orderId, status, paymentIntentId } = req.body;
-
-  try {
-    const order = await Order.findById(orderId);
-    if (!order) {
-      return res.status(404).json({ error: "Order not found" });
-    }
-
-    if (status === "paid") {
-      const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
-      const paymentIntent = await stripe.paymentIntents.retrieve(
-        paymentIntentId
-      );
-
-      if (paymentIntent.status !== "succeeded") {
-        return res.status(400).json({ error: "Payment not successful" });
-      }
-
-      if (paymentIntent.amount_received < paymentIntent.amount) {
-        order.status = "partially_paid";
-        order.paymentStatus = "partially_paid";
-        await order.save();
-        return res.json({ status: "partially_paid" });
-      }
-    }
-
-    order.status = status;
-    order.paymentStatus = status === "paid" ? "received" : "pending";
-    order.paymentIntentId = paymentIntentId;
-    await order.save();
-
-    res.json({ status: order.status });
-  } catch (error) {
-    console.error("Error updating order status:", error);
-    res.status(500).json({ error: "Failed to update order status" });
-  }
-};
-
 exports.getUserOrders = async (req, res) => {
   try {
     const { userId } = req.params;
 
     const orders = await Order.find({ userId })
-      .populate("sellerId", "name")
+      .populate("sellerIds", "name")
       .lean();
 
     const detailedOrders = await Promise.all(

@@ -1,120 +1,80 @@
-const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+const mongoose = require("mongoose");
 const Order = require("../../models/Order.models");
+const Cart = require("../../models/Cart.models");
+const Product = require("../../models/Product.models");
+const Purchased = require("../../models/Purchased.models");
 
-exports.createPaymentIntent = async (req, res) => {
-  const { amount, orderId } = req.body;
+const crypto = require("crypto");
+
+async function confirmOrder(orderId) {
+  const session = await mongoose.startSession();
+  session.startTransaction();
 
   try {
-    const order = await Order.findById(orderId);
+    const order = await Order.findById(orderId).session(session);
     if (!order) {
-      return res.status(404).json({ error: "Order not found" });
+      throw new Error("Order not found");
     }
 
-    if (order.status !== "pending") {
-      return res.status(400).json({ error: "Invalid order status" });
-    }
-
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount,
-      currency: "usd",
-      metadata: { orderId },
-    });
-
-    res.json({ clientSecret: paymentIntent.client_secret });
-  } catch (error) {
-    console.error("Error creating payment intent:", error);
-    res.status(500).json({ error: "Failed to create payment intent" });
-  }
-};
-
-exports.processRefund = async (req, res) => {
-  const { orderId } = req.body;
-
-  try {
-    const order = await Order.findById(orderId);
-    if (!order) {
-      return res.status(404).json({ error: "Order not found" });
-    }
-
-    if (order.status !== "paid" && order.status !== "partially_paid") {
-      return res
-        .status(400)
-        .json({ error: "Order is not eligible for refund" });
-    }
-
-    const paymentIntent = await stripe.paymentIntents.retrieve(
-      order.paymentIntentId
-    );
-
-    const refund = await stripe.refunds.create({
-      payment_intent: order.paymentIntentId,
-      amount: paymentIntent.amount_received,
-    });
-
-    if (refund.status === "succeeded") {
-      order.status =
-        refund.amount === paymentIntent.amount_received
-          ? "refunded"
-          : "partially_refunded";
-      await order.save();
-      res.json({ status: order.status });
-    } else {
-      res
-        .status(400)
-        .json({ error: "Refund failed", refundStatus: refund.status });
-    }
-  } catch (error) {
-    console.error("Error processing refund:", error);
-    res.status(500).json({ error: "Failed to process refund" });
-  }
-};
-
-exports.handleWebhook = async (req, res) => {
-  const sig = req.headers["stripe-signature"];
-
-  let event;
-
-  try {
-    event = stripe.webhooks.constructEvent(
-      req.body,
-      sig,
-      process.env.STRIPE_WEBHOOK_SECRET
-    );
-  } catch (err) {
-    return res.status(400).send(`Webhook Error: ${err.message}`);
-  }
-
-  switch (event.type) {
-    case "payment_intent.succeeded":
-      await handlePaymentIntentSucceeded(event.data.object);
-      break;
-    case "payment_intent.payment_failed":
-      await handlePaymentIntentFailed(event.data.object);
-      break;
-    default:
-      console.log(`Unhandled event type ${event.type}`);
-  }
-
-  res.json({ received: true });
-};
-
-async function handlePaymentIntentSucceeded(paymentIntent) {
-  const orderId = paymentIntent.metadata.orderId;
-  const order = await Order.findById(orderId);
-  if (order) {
-    order.status = "paid";
+    order.status = "processing";
     order.paymentStatus = "received";
-    order.paymentIntentId = paymentIntent.id;
-    await order.save();
-  }
-}
+    await order.save({ session });
 
-async function handlePaymentIntentFailed(paymentIntent) {
-  const orderId = paymentIntent.metadata.orderId;
-  const order = await Order.findById(orderId);
-  if (order) {
-    order.status = "payment_failed";
-    order.paymentStatus = "failed";
-    await order.save();
+    for (const orderItem of order.products) {
+      const product = await Product.findById(orderItem.productId).session(
+        session
+      );
+      if (!product) {
+        throw new Error(`Product not found: ${orderItem.productId}`);
+      }
+
+      if (product.quantity < orderItem.quantity) {
+        throw new Error(`Insufficient quantity for product: ${product.name}`);
+      }
+
+      product.quantity -= orderItem.quantity;
+      await product.save({ session });
+
+      await new Purchased({
+        orderId: order._id,
+        productId: orderItem.productId,
+        sellerIds: [product.seller],
+        quantity: orderItem.quantity,
+        price: product.price,
+      }).save({ session });
+    }
+
+    await session.commitTransaction();
+  } catch (error) {
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    session.endSession();
   }
 }
+exports.verifyPayment = async (req, res) => {
+  const { razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body;
+
+  const generatedSignature = crypto
+    .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+    .update(`${razorpayOrderId}|${razorpayPaymentId}`)
+    .digest("hex");
+
+  if (generatedSignature === razorpaySignature) {
+    try {
+      const order = await Order.findOne({ razorpayOrderId });
+      if (order) {
+        await confirmOrder(order._id);
+        order.razorpayPaymentId = razorpayPaymentId;
+        order.razorpaySignature = razorpaySignature;
+        await order.save();
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error confirming order:", error);
+      res.status(500).json({ error: "Error confirming order" });
+    }
+  } else {
+    res.status(400).json({ error: "Invalid signature" });
+  }
+};

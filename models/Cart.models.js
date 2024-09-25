@@ -25,6 +25,8 @@ const CartSchema = new mongoose.Schema(
         },
         price: Number,
         isWishList: { type: Boolean, default: false },
+        status:{
+          type:String,}
       },
     ],
     bill: {

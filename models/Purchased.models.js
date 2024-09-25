@@ -4,7 +4,7 @@ const Schema = mongoose.Schema;
 const purchasedSchema = new Schema({
   orderId: { type: Schema.Types.ObjectId, ref: "Order", required: true },
   productId: [{ type: Schema.Types.ObjectId, ref: "Product", required: true }],
-  sellerId: { type: Schema.Types.ObjectId, ref: "Shop", required: true },
+  sellerIds: [{ type: Schema.Types.ObjectId, ref: "Shop", required: true }],
   quantity: { type: Number, required: true },
   price: { type: Number, required: true },
 });
