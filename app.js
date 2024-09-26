@@ -18,7 +18,6 @@ const orderRoutes = require("./routes/Order/orderRoutes");
 const paymentRoutes = require("./routes/Payment/paymentRoutes");
 const cors = require("cors");
 const path = require("path");
-const { dirname } = require("path");
 const passport = require("passport");
 const { engine } = require("express-handlebars");
 const cookieParser = require("cookie-parser");
@@ -80,6 +79,7 @@ app.use(passport.session());
 
 // app.use(passport.initialize());
 // app.use(passport.session());
+
 // Configure Express Handlebars
 app.engine("handlebars", engine());
 app.set("view engine", "handlebars");

@@ -1,12 +1,8 @@
-
 const { socketAuth } = require("../middleware/validateToken.middleware");
 const {
   handleLikeEvent,
   handleMessageEvent,
 } = require("../controllers/Socket/socketController");
-
-
-
 
 // Socket.IO Message Handler
 const handleSocketConnection = (io) => {
@@ -34,4 +30,4 @@ const handleSocketConnection = (io) => {
   });
 };
 
-module.exports = { handleSocketConnection};
+module.exports = { handleSocketConnection };

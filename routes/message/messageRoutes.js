@@ -5,7 +5,7 @@ const { verifyToken } = require("../../middleware/validateToken.middleware");
 const verifyUser = verifyToken("user");
 
 router.get(
-  "/messages/:userId/:shopId",
+  "/messages/:userId/:receiver",
   verifyUser,
   messageController.getMessages
 );

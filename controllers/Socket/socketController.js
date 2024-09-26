@@ -62,22 +62,27 @@ exports.handleMessageEvent = (io, socket) => {
           io.to(receiver).emit("message", JSON.stringify(newMessage));
 
           const receiverRoom = io.sockets.adapter.rooms.get(receiver);
-          //   console.log("receiverRoom", receiverRoom);
-          //   console.log("receiverRoom.size", receiverRoom.size);
-          //   console.log("fcmToken", fcmToken, fcmInitialized);
+          // console.log("receiverRoom", receiverRoom);
+          // console.log("receiverRoom.size", receiverRoom.size);
+          // console.log("fcmToken", fcmToken, fcmInitialized);
 
-          //   if (!receiverRoom || receiverRoom.size === 0) {
-          //     if (fcmInitialized && fcmToken) {
-          //       await sendPushNotification(fcmToken, {
-          //         title: "New Message",
-          //         body: `${name}: ${text}`,
-          //       });
-          //     } else {
-          //       console.log(
-          //         "Skipping push notification: FCM not initialized or token missing"
-          //       );
-          //     }
-          //   }
+          if (!receiverRoom || receiverRoom.size === 0) {
+            if (fcmInitialized) {
+              //&& fcmToken
+              await sendPushNotification(
+                receiver, //fcmToken,
+                {
+                  title: "New Message",
+                  body: `${name}: ${text}`,
+                }
+              );
+              console.log("Push notification sent");
+            } else {
+              console.log(
+                "Skipping push notification: FCM not initialized or token missing"
+              );
+            }
+          }
         } catch (error) {
           console.error("Error handling message event:", error.message);
           socket.emit("message:error", { message: "Failed to send message" });

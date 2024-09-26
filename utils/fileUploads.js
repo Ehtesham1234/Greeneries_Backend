@@ -19,42 +19,4 @@ const fileSizeFormatter = (bytes, decimal) => {
   );
 };
 
-const sendOtp = async (identifier, otp) => {
-  console.log("identifier", identifier);
-  // Check if identifier is an email
-  if (identifier?.includes("@")) {
-    // Create a transporter
-    // let transporter = nodemailer.createTransport({
-    //   service: "gmail",
-    //   // host: "smtp.ethereal.email",
-    //   port: 465,
-    //   secure: false,
-    //   auth: {
-    //     user: "tiadsforme@gmail.com",
-    //     pass: "jkhgvpxcarwuianv",
-    //   },
-    // });
-
-    // // Send email
-    // let info = await transporter.sendMail({
-    //   from: process.env.EMAIL_USERNAME, // sender address
-    //   to: identifier, // list of receivers
-    //   subject: "Your OTP", // Subject line
-    //   text: `Your OTP is ${otp}`, // plain text body
-    // });
-
-    // console.log("Message sent: %s", info.messageId, identifier, otp);
-    console.log("Message sent: %s", identifier, otp);
-  } else {
-    // Send SMS
-    client.messages
-      .create({
-        body: `Your OTP is ${otp}`,
-        from: process.env.TWILIO_PHONE_NUMBER, // Your Twilio phone number
-        to: identifier,
-      })
-      .then((message) => console.log(message.sid))
-      .catch((err) => console.error(err));
-  }
-};
-module.exports = { fileSizeFormatter, sendOtp };
+module.exports = { fileSizeFormatter };

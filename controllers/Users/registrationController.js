@@ -2,23 +2,23 @@ const User = require("../../models/User.models");
 const crypto = require("crypto");
 const { validationResult } = require("express-validator");
 const Role = require("../../models/roles/roles.models");
-const Product = require("../../models/Product.models");
-const Shop = require("../../models/Shop.models");
-const Cart = require("../../models/Cart.models");
-const Buyer = require("../../models/Buyer.models");
-const Blog = require("../../models/Blog.models");
+// const Product = require("../../models/Product.models");
+// const Shop = require("../../models/Shop.models");
+// const Cart = require("../../models/Cart.models");
+// const Buyer = require("../../models/Buyer.models");
+// const Blog = require("../../models/Blog.models");
 const jwt = require("jsonwebtoken");
-const { sendOtp } = require("../../utils/fileUploads");
 const { asyncHandler } = require("../../utils/asyncHandler");
 const { ApiError } = require("../../utils/ApiError");
 const { ApiResponse } = require("../../utils/ApiResponse");
-const { uploadOnCloudinary } = require("../../utils/cloudinary");
-const { promisify } = require("util");
-const fs = require("fs");
-const path = require("path");
-const writeFileAsync = promisify(fs.writeFile);
-const unlinkAsync = promisify(fs.unlink);
-const fsExistsAsync = promisify(fs.exists);
+const { otpSender } = require("../../common/email");
+// const { uploadOnCloudinary } = require("../../utils/cloudinary");
+// const { promisify } = require("util");
+// const fs = require("fs");
+// const path = require("path");
+// const writeFileAsync = promisify(fs.writeFile);
+// const unlinkAsync = promisify(fs.unlink);
+// const fsExistsAsync = promisify(fs.exists);
 
 //refresh token
 const generateAccessAndRefereshTokens = async (userId) => {
@@ -90,7 +90,7 @@ exports.userRegistration = asyncHandler(async (req, res, nex) => {
       await existingUser.save();
 
       // Send OTP for verification
-      sendOtp(phoneNumber || email, otp);
+      otpSender(phoneNumber || email, otp, userName);
       const createdUser = await User.findById(existingUser._id).select(
         "-password -refreshToken"
       );
@@ -143,7 +143,7 @@ exports.userRegistration = asyncHandler(async (req, res, nex) => {
   await user.save();
 
   // Send OTP for verification
-  sendOtp(phoneNumber || email, otp);
+  otpSender(phoneNumber || email, otp, userName);
   const createdUser = await User.findById(user._id).select(
     "-password -refreshToken"
   );
@@ -266,7 +266,7 @@ exports.userSignIn = asyncHandler(async (req, res, next) => {
     await user.save();
 
     // Send OTP for verification
-    sendOtp(phoneNumber || email, otp);
+    otpSender(phoneNumber || email, otp, (userName = user.userName));
 
     const createdUser = await User.findById(user._id).select(
       "-password -refreshToken"
@@ -449,7 +449,7 @@ exports.getPasswordResetOtp = asyncHandler(async (req, res, next) => {
   await user.save();
 
   // Send OTP for verification
-  sendOtp(phoneNumber || email, otp);
+  otpSender(phoneNumber || email, otp, (userName = user.username));
 
   return res
     .status(201)

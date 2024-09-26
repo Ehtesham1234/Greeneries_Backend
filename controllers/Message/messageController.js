@@ -2,13 +2,13 @@ const Message = require("../../models/Message.models");
 const Shop = require("../../models/Shop.models");
 exports.getMessages = async (req, res, next) => {
   try {
-    const { userId, shopId } = req.params;
-    console.log(userId, shopId);
+    const { userId, receiver } = req.params;
+    console.log(userId, receiver);
 
     const messages = await Message.find({
       $or: [
-        { sender: userId, receiver: shopId },
-        { sender: shopId, receiver: userId },
+        { sender: userId, receiver: receiver },
+        { sender: receiver, receiver: userId },
       ],
     }).sort({ timestamp: -1 });
     res.status(200).json(messages);

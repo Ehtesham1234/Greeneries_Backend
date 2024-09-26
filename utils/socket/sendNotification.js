@@ -10,13 +10,13 @@ exports.sendPushNotification = async (fcmToken, notification) => {
     return;
   }
 
-  if (!fcmToken) {
-    console.error("FCM Token is required but was not provided.");
-    return;
-  }
+  // if (!fcmToken) {
+  //   console.error("FCM Token is required but was not provided.");
+  //   return;
+  // }
 
   const message = {
-    token: fcmToken,
+    token: topic, //fcmToken,
     notification: {
       title: notification.title,
       body: notification.body,
