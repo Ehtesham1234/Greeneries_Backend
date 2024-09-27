@@ -70,11 +70,9 @@ exports.handleMessageEvent = (io, socket) => {
             if (fcmInitialized) {
               //&& fcmToken
               await sendPushNotification(
-                receiver, //fcmToken,
-                {
-                  title: "New Message",
-                  body: `${name}: ${text}`,
-                }
+                receiver,
+                "New Message",
+                `${name}: ${text}`
               );
               console.log("Push notification sent");
             } else {

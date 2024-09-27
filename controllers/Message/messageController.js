@@ -1,5 +1,6 @@
 const Message = require("../../models/Message.models");
 const Shop = require("../../models/Shop.models");
+const User = require("../../models/User.models");
 exports.getMessages = async (req, res, next) => {
   try {
     const { userId, receiver } = req.params;
@@ -45,16 +46,29 @@ exports.getUserMessages = async (req, res, next) => {
         },
       },
     ]);
-    // console.log("messages", messages);
+
     const userIds = messages.length > 0 ? messages[0].userIds : [];
     // console.log("userIds", userIds);
-    // Populate user details
-    const users = await Shop.find({ _id: { $in: userIds } }, "shopName");
-    // console.log("users", users);
-    if (!users) {
-      res.status(200).json((users = []));
-    }
-    res.status(200).json(users);
+    // Fetch user details
+    const users = await User.find({ _id: { $in: userIds } }, "userName email");
+    const shops = await Shop.find({ _id: { $in: userIds } }, "shopName");
+
+    // Combine user and shop details
+    const combinedUsers = users.map((user) => ({
+      _id: user._id,
+      name: user.userName,
+      type: "user",
+    }));
+
+    const combinedShops = shops.map((shop) => ({
+      _id: shop._id,
+      name: shop.shopName,
+      type: "shop",
+    }));
+
+    const combinedResults = [...combinedUsers, ...combinedShops];
+
+    res.status(200).json(combinedResults);
   } catch (error) {
     next(error);
   }
