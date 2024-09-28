@@ -62,15 +62,16 @@ exports.handleMessageEvent = (io, socket) => {
         const fcmToken = await User.findOne({ _id: receiver }).select(
           "fcmToken"
         );
+        console.log("fcmToken", fcmToken);
         const receiverRoom = io.sockets.adapter.rooms.get(receiver);
         // console.log("receiverRoom", receiverRoom);
         // console.log("receiverRoom.size", receiverRoom.size);
         // console.log("fcmToken", fcmToken, fcmInitialized);
 
         if (!receiverRoom || receiverRoom.size === 0) {
-          if (fcmInitialized && fcmToken) {
+          if (fcmInitialized && fcmToken.fcmToken) {
             await sendPushNotification(
-              fcmToken,
+              fcmToken.fcmToken,
               "New Message",
               `${name}: ${text}`
             );
