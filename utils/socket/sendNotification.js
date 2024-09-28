@@ -2,7 +2,7 @@ const { fcmInitialized } = require("../../utils/socket/initializefcm");
 const admin = require("firebase-admin");
 
 // FCM Push Notification Sender
-exports.sendPushNotification = async (receiver, title, body) => {
+exports.sendPushNotification = async (fcmToken, title, body ) => {
   if (!fcmInitialized) {
     console.error(
       "Firebase Admin SDK not initialized. Skipping push notification."
@@ -10,14 +10,14 @@ exports.sendPushNotification = async (receiver, title, body) => {
     return;
   }
   //fcmToken, params se lena hoga ager user karna hai
-  // if (!fcmToken) {
-  //   console.error("FCM Token is required but was not provided.");
-  //   return;
-  // }
+  if (!fcmToken) {
+    console.error("FCM Token is required but was not provided.");
+    return;
+  }
   console.log("receiver, title, body", receiver, title, body);
 
   const message = {
-    topic: receiver, //fcmToken,
+    token: fcmToken, 
     notification: {
       title: title,
       body: body,

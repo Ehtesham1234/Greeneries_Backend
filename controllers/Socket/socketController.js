@@ -51,41 +51,40 @@ exports.handleLikeEvent = (io, socket) => {
 exports.handleMessageEvent = (io, socket) => {
   socket.on(
     "event:message",
-    asyncHandler(
-      async ({ text, sender, receiver, name, timestamp, fcmToken }) => {
-        try {
-          if (!text) throw new Error("Message text is required");
-          console.log("receiver", receiver);
+    asyncHandler(async ({ text, sender, receiver, name, timestamp }) => {
+      try {
+        if (!text) throw new Error("Message text is required");
+        console.log("receiver", receiver);
 
-          const newMessage = new Message({ text, sender, receiver, timestamp });
-          await newMessage.save();
-          io.to(receiver).emit("message", JSON.stringify(newMessage));
+        const newMessage = new Message({ text, sender, receiver, timestamp });
+        await newMessage.save();
+        io.to(receiver).emit("message", JSON.stringify(newMessage));
+        const fcmToken = await User.findOne({ _id: receiver }).select(
+          "fcmToken"
+        );
+        const receiverRoom = io.sockets.adapter.rooms.get(receiver);
+        // console.log("receiverRoom", receiverRoom);
+        // console.log("receiverRoom.size", receiverRoom.size);
+        // console.log("fcmToken", fcmToken, fcmInitialized);
 
-          const receiverRoom = io.sockets.adapter.rooms.get(receiver);
-          // console.log("receiverRoom", receiverRoom);
-          // console.log("receiverRoom.size", receiverRoom.size);
-          // console.log("fcmToken", fcmToken, fcmInitialized);
-
-          if (!receiverRoom || receiverRoom.size === 0) {
-            if (fcmInitialized) {
-              //&& fcmToken
-              await sendPushNotification(
-                receiver,
-                "New Message",
-                `${name}: ${text}`
-              );
-              console.log("Push notification sent");
-            } else {
-              console.log(
-                "Skipping push notification: FCM not initialized or token missing"
-              );
-            }
+        if (!receiverRoom || receiverRoom.size === 0) {
+          if (fcmInitialized && fcmToken) {
+            await sendPushNotification(
+              fcmToken,
+              "New Message",
+              `${name}: ${text}`
+            );
+            console.log("Push notification sent");
+          } else {
+            console.log(
+              "Skipping push notification: FCM not initialized or token missing"
+            );
           }
-        } catch (error) {
-          console.error("Error handling message event:", error.message);
-          socket.emit("message:error", { message: "Failed to send message" });
         }
+      } catch (error) {
+        console.error("Error handling message event:", error.message);
+        socket.emit("message:error", { message: "Failed to send message" });
       }
-    )
+    })
   );
 };

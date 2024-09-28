@@ -159,7 +159,7 @@ exports.userRegistration = asyncHandler(async (req, res, nex) => {
 });
 
 exports.userVerification = asyncHandler(async (req, res, next) => {
-  const { phoneNumber, email, otpVerificationCode } = req.body;
+  const { phoneNumber, email, otpVerificationCode, fcmToken } = req.body;
   const roleObject = await Role.findOne({ id: 3 });
   // console.log("roleObject", roleObject);
   // Fetch user details
@@ -203,6 +203,10 @@ exports.userVerification = asyncHandler(async (req, res, next) => {
   user.otpCodeExpiration = null;
   user.otpVerificationCode = null;
   user.refreshToken = refreshToken;
+  if (fcmToken) {
+    user.fcmToken = fcmToken;
+  }
+
   await user.save();
 
   const createdUser = await User.findById(user._id).select(
@@ -231,7 +235,7 @@ exports.userSignIn = asyncHandler(async (req, res, next) => {
     });
   }
 
-  const { phoneNumber, email, password } = req.body;
+  const { phoneNumber, email, password, fcmToken } = req.body;
 
   // Find the user by their phone or email
   let user;
@@ -257,6 +261,9 @@ exports.userSignIn = asyncHandler(async (req, res, next) => {
     // Save user to database with status unverified
     user.otpVerificationCode = otp;
     user.otpCodeExpiration = otpExpiry;
+    if (fcmToken) {
+      user.fcmToken = fcmToken;
+    }
     if (email) {
       user.isEmailVerified = false;
     } else if (phoneNumber) {
@@ -309,6 +316,9 @@ exports.userSignIn = asyncHandler(async (req, res, next) => {
   // Assign refreshToken to user object but do not include it in the response
   user.refreshToken = refreshToken;
   user.isLoggedIn = true;
+  if (fcmToken) {
+    user.fcmToken = fcmToken;
+  }
   await user.save();
 
   const loggedInUser = await User.findById(user._id).select(

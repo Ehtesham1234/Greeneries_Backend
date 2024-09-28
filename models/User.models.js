@@ -29,6 +29,7 @@ const UserSchema = new Schema(
     refreshToken: {
       type: String,
     },
+    fcmToken: { type: String },
     oauthId: { type: String, unique: true, sparse: true },
     location: {
       type: {
