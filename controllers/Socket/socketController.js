@@ -59,9 +59,8 @@ exports.handleMessageEvent = (io, socket) => {
         const newMessage = new Message({ text, sender, receiver, timestamp });
         await newMessage.save();
         io.to(receiver).emit("message", JSON.stringify(newMessage));
-        const fcmToken = await User.findOne({ _id: receiver }).select(
-          "fcmToken"
-        );
+        const user = await User.findOne({ _id: receiver }).select("fcmToken");
+        const fcmToken = user ? user.fcmToken : null;
         console.log("fcmToken", fcmToken);
         const receiverRoom = io.sockets.adapter.rooms.get(receiver);
         // console.log("receiverRoom", receiverRoom);
@@ -69,16 +68,17 @@ exports.handleMessageEvent = (io, socket) => {
         // console.log("fcmToken", fcmToken, fcmInitialized);
 
         if (!receiverRoom || receiverRoom.size === 0) {
-          if (fcmInitialized && fcmToken.fcmToken) {
+          if (fcmToken) {
             await sendPushNotification(
-              fcmToken.fcmToken,
+              fcmToken,
               "New Message",
               `${name}: ${text}`
             );
             console.log("Push notification sent");
           } else {
             console.log(
-              "Skipping push notification: FCM not initialized or token missing"
+              "Skipping push notification: FCM not initialized or token missing",
+              receiver
             );
           }
         }
