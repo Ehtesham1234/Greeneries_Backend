@@ -25,6 +25,10 @@ exports.sendPushNotification = async (fcmToken, title, body) => {
     android: {
       priority: "high",
     },
+    data: {
+      key1: "value1",
+      key2: "value2", // Custom data to pass along with the notification
+    },
   };
 
   try {
