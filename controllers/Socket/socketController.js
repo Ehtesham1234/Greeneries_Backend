@@ -62,6 +62,9 @@ exports.handleMessageEvent = (io, socket) => {
         const user = await User.findOne({ _id: receiver }).select("fcmToken");
         const fcmToken = user ? user.fcmToken : null;
         console.log("fcmToken", fcmToken);
+        const senderFc = await User.findOne({ _id: sender }).select("fcmToken");
+        const fcmTokenSender = senderFc ? senderFc.fcmToken : null;
+        console.log("fcmTokenSender", fcmTokenSender);
         const receiverRoom = io.sockets.adapter.rooms.get(receiver);
         // console.log("receiverRoom", receiverRoom);
         // console.log("receiverRoom.size", receiverRoom.size);
