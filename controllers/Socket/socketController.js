@@ -81,6 +81,7 @@ exports.handleMessageEvent = (io, socket) => {
               "New Message",
               `${senderUser.userName}: ${text}`,
               {
+                navigationId: "chat",
                 senderId: sender,
                 senderName: senderUser.userName,
               }
