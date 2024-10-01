@@ -2,7 +2,6 @@ const Blog = require("../../models/Blog.models");
 const Message = require("../../models/Message.models");
 const { asyncHandler } = require("../../utils/asyncHandler");
 const { sendPushNotification } = require("../../utils/socket/sendNotification");
-const { fcmInitialized } = require("../../utils/socket/initializefcm");
 const User = require("../../models/User.models");
 // Socket.IO handler for likes
 exports.handleLikeEvent = (io, socket) => {
@@ -48,39 +47,49 @@ exports.handleLikeEvent = (io, socket) => {
 };
 
 // Socket.IO handler for messages
+
 exports.handleMessageEvent = (io, socket) => {
   socket.on(
     "event:message",
-    asyncHandler(async ({ text, sender, receiver, name, timestamp }) => {
+    async ({ text, sender, receiver, name, timestamp }) => {
       try {
         if (!text) throw new Error("Message text is required");
         console.log("receiver", receiver);
 
         const newMessage = new Message({ text, sender, receiver, timestamp });
         await newMessage.save();
-        io.to(receiver).emit("message", JSON.stringify(newMessage));
-        const user = await User.findOne({ _id: receiver }).select("fcmToken");
-        const fcmToken = user ? user.fcmToken : null;
-        console.log("fcmToken", fcmToken);
-        const senderFc = await User.findOne({ _id: sender }).select("fcmToken");
-        const fcmTokenSender = senderFc ? senderFc.fcmToken : null;
-        console.log("fcmTokenSender", fcmTokenSender);
-        const receiverRoom = io.sockets.adapter.rooms.get(receiver);
-        // console.log("receiverRoom", receiverRoom);
-        // console.log("receiverRoom.size", receiverRoom.size);
-        // console.log("fcmToken", fcmToken, fcmInitialized);
 
-        if (!receiverRoom || receiverRoom.size === 0) {
+        const receiverSocket = io.sockets.adapter.rooms.get(receiver);
+        if (receiverSocket && receiverSocket.size > 0) {
+          // Receiver is online, send the message through socket
+          io.to(receiver).emit("message", JSON.stringify(newMessage));
+        } else {
+          // Receiver is offline, send a push notification
+          const receiverUser = await User.findOne({ _id: receiver }).select(
+            "fcmToken"
+          );
+          const fcmToken = receiverUser ? receiverUser.fcmToken : null;
+          console.log("fcmToken", fcmToken);
+
           if (fcmToken) {
+            const senderUser = await User.findOne({ _id: sender }).select(
+              "name"
+            );
+            console.log("senderUserToken", senderUser.fcmToken);
             await sendPushNotification(
               fcmToken,
               "New Message",
-              `${name}: ${text}`
+              `${name}: ${text}`,
+              {
+                senderId: sender,
+                senderName: name,
+                messageId: newMessage._id,
+              }
             );
             console.log("Push notification sent");
           } else {
             console.log(
-              "Skipping push notification: FCM not initialized or token missing",
+              "Skipping push notification: FCM token missing for user",
               receiver
             );
           }
@@ -89,6 +98,6 @@ exports.handleMessageEvent = (io, socket) => {
         console.error("Error handling message event:", error.message);
         socket.emit("message:error", { message: "Failed to send message" });
       }
-    })
+    }
   );
 };
