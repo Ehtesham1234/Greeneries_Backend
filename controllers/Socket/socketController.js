@@ -79,7 +79,7 @@ exports.handleMessageEvent = (io, socket) => {
             await sendPushNotification(
               fcmToken,
               "New Message",
-              `${senderUser.name}: ${text}`,
+              `${senderUser.userName}: ${text}`,
               {
                 senderId: sender,
                 senderName: senderUser.userName,
