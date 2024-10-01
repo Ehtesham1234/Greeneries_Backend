@@ -73,17 +73,16 @@ exports.handleMessageEvent = (io, socket) => {
 
           if (fcmToken) {
             const senderUser = await User.findOne({ _id: sender }).select(
-              "name"
+              "userName fcmToken"
             );
-            console.log("senderUserToken", senderUser.fcmToken);
+            console.log("senderUserToken", senderUser);
             await sendPushNotification(
               fcmToken,
               "New Message",
-              `${name}: ${text}`,
+              `${senderUser.name}: ${text}`,
               {
                 senderId: sender,
-                senderName: name,
-                messageId: newMessage._id,
+                senderName: senderUser.userName,
               }
             );
             console.log("Push notification sent");
