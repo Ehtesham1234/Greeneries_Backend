@@ -1,6 +1,5 @@
 const { fcmInitialized, admin } = require("../../utils/socket/initializefcm");
 
-
 // FCM Push Notification Sender
 
 exports.sendPushNotification = async (fcmToken, title, body, data) => {
@@ -23,11 +22,12 @@ exports.sendPushNotification = async (fcmToken, title, body, data) => {
     notification: {
       title: title,
       body: body,
+      data: data,
     },
     android: {
       priority: "high",
     },
-    data: data, // Include the additional data here
+    // Include the additional data here
   };
 
   console.log("message", message);
