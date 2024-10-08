@@ -907,43 +907,56 @@ exports.getBlog = asyncHandler(async (req, res) => {
 
 exports.getBlogOfUser = asyncHandler(async (req, res) => {
   try {
-    const id = req.user_id;
-    const blogs = await Blog.find({ author: id }).populate(
-      "author",
-      "userName"
-    );
-    res.status(200).json(new ApiResponse(200, blogs));
+    const { page = 1, limit = 10 } = req.query;
+    const userId = req.user._id;
+
+    // Pagination
+    const skip = (page - 1) * limit;
+    const blogs = await Blog.find({ author: userId })
+      .populate("author", "userName")
+      .skip(skip)
+      .limit(limit)
+      .select("-content");
+
+    // Add liked and saved status
+    const blogsWithStatus = blogs.map((blog) => ({
+      ...blog.toObject(),
+      isLiked: blog.likes.includes(userId),
+      isSaved: req.user.savedBlogs.includes(blog._id),
+    }));
+
+    res.status(200).json(new ApiResponse(200, blogsWithStatus));
   } catch (error) {
-    res.status(500).json(new ApiError(500, error.message));
+    res.status(500).json(new ApiError(500, `Server Error: ${error.message}`));
   }
 });
 
-exports.likeBlog = asyncHandler(async (req, res) => {
-  try {
-    const blog = await Blog.findById(req.params.id);
-    if (!blog) {
-      return res.status(404).json(new ApiError(404, "Blog not found"));
-    }
-    const userIndex = blog.likes.indexOf(req.user._id);
-    if (userIndex === -1) {
-      // Like the blog
-      blog.likes.push(req.user._id);
-      blog.likeCount += 1;
-      req.user.likedBlogs.push(blog._id);
-    } else {
-      // Unlike the blog
-      blog.likes.splice(userIndex, 1);
-      blog.likeCount -= 1;
-      const likedBlogIndex = req.user.likedBlogs.indexOf(blog._id);
-      req.user.likedBlogs.splice(likedBlogIndex, 1);
-    }
-    await blog.save();
-    await req.user.save();
-    res.status(200).json(new ApiResponse(200, blog));
-  } catch (error) {
-    res.status(500).json(new ApiError(500, error.message));
-  }
-});
+// exports.likeBlog = asyncHandler(async (req, res) => {
+//   try {
+//     const blog = await Blog.findById(req.params.id);
+//     if (!blog) {
+//       return res.status(404).json(new ApiError(404, "Blog not found"));
+//     }
+//     const userIndex = blog.likes.indexOf(req.user._id);
+//     if (userIndex === -1) {
+//       // Like the blog
+//       blog.likes.push(req.user._id);
+//       blog.likeCount += 1;
+//       req.user.likedBlogs.push(blog._id);
+//     } else {
+//       // Unlike the blog
+//       blog.likes.splice(userIndex, 1);
+//       blog.likeCount -= 1;
+//       const likedBlogIndex = req.user.likedBlogs.indexOf(blog._id);
+//       req.user.likedBlogs.splice(likedBlogIndex, 1);
+//     }
+//     await blog.save();
+//     await req.user.save();
+//     res.status(200).json(new ApiResponse(200, blog));
+//   } catch (error) {
+//     res.status(500).json(new ApiError(500, error.message));
+//   }
+// });
 
 exports.saveBlog = asyncHandler(async (req, res) => {
   try {
@@ -982,11 +995,34 @@ exports.getLikedBlogs = asyncHandler(async (req, res) => {
 // Get Saved Blogs
 exports.getSavedBlogs = asyncHandler(async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).populate("savedBlogs");
+    const user = await User.findById(req.user._id).populate({
+      path: "savedBlogs",
+      populate: { path: "author", select: "userName" },
+    });
+
     if (!user) {
       return res.status(404).json(new ApiError(404, "User not found"));
     }
-    res.status(200).json(new ApiResponse(200, user.savedBlogs));
+
+    const blogWithStatus = user.savedBlogs.map((blog) => {
+      const isLiked = blog.likes
+        .map((id) => id.toString())
+        .includes(req.user._id.toString());
+      const isSaved = true;
+
+      // console.log(
+      //   `Blog ID: ${blog._id}, isLiked: ${isLiked}, isSaved: ${isSaved}`
+      // );
+
+      return {
+        ...blog.toObject(),
+        isLiked,
+        isSaved,
+      };
+    });
+
+    // console.log("blogWithStatus", blogWithStatus);
+    res.status(200).json(new ApiResponse(200, blogWithStatus));
   } catch (error) {
     res.status(500).json(new ApiError(500, error.message));
   }

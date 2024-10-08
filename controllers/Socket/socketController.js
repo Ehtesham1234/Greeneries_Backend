@@ -3,6 +3,7 @@ const Message = require("../../models/Message.models");
 const { asyncHandler } = require("../../utils/asyncHandler");
 const { sendPushNotification } = require("../../utils/socket/sendNotification");
 const User = require("../../models/User.models");
+
 // Socket.IO handler for likes
 exports.handleLikeEvent = (io, socket) => {
   socket.on(
@@ -36,8 +37,8 @@ exports.handleLikeEvent = (io, socket) => {
         await blog.save();
         await user.save();
         io.emit("blogLiked", blog); // Emit the updated blog to all clients
-        console.log("Blog liked:", blog);
-        console.log("Blog liked:", user);
+        // console.log("Blog liked:", blog);
+        // console.log("Blog liked:", user);
       } catch (error) {
         console.error("Error handling like event:", error.message);
         socket.emit("error", { message: "Failed to like blog" });
@@ -59,12 +60,19 @@ exports.handleMessageEvent = (io, socket) => {
         const newMessage = new Message({ text, sender, receiver, timestamp });
         await newMessage.save();
 
-        const receiverSocket = io.sockets.adapter.rooms.get(receiver);
-        if (receiverSocket && receiverSocket.size > 0) {
-          // Receiver is online, send the message through socket
+        const receiverRoom = `inChat_${receiver}`;
+        const isReceiverInChat =
+          io.sockets.adapter.rooms.has(receiverRoom) &&
+          io.sockets.adapter.rooms.get(receiverRoom).size > 0;
+        console.log("isReceiverInChat", isReceiverInChat);
+        if (isReceiverInChat) {
+          // Receiver is in chat, emit the message through socket only
           io.to(receiver).emit("message", JSON.stringify(newMessage));
         } else {
-          // Receiver is offline, send a push notification
+          // Receiver is not in chat, emit the message and send a push notification
+          io.to(receiver).emit("message", JSON.stringify(newMessage));
+
+          // Send push notification
           const receiverUser = await User.findOne({ _id: receiver }).select(
             "fcmToken"
           );
@@ -94,6 +102,9 @@ exports.handleMessageEvent = (io, socket) => {
             );
           }
         }
+
+        // Emit typing event with isTyping set to false when a message is sent
+        io.to(receiver).emit("typing", { userId: sender, isTyping: false });
       } catch (error) {
         console.error("Error handling message event:", error.message);
         socket.emit("message:error", { message: "Failed to send message" });
