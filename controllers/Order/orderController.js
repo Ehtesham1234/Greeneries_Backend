@@ -3,6 +3,7 @@ const Order = require("../../models/Order.models");
 const Cart = require("../../models/Cart.models");
 const Product = require("../../models/Product.models");
 const Purchased = require("../../models/Purchased.models");
+const User = require("../../models/User.models");
 const Razorpay = require("razorpay");
 
 const razorpay = new Razorpay({
@@ -98,26 +99,44 @@ exports.placeOrder = async (req, res) => {
 
 exports.getUserOrders = async (req, res) => {
   try {
-    const { userId } = req.params;
+    const userId = req.user._id;
+    const user = await User.findOne({ _id: userId });
+    const buyerIds = user.buyer.map((buyer) => buyer._id);
 
-    const orders = await Order.find({ userId })
+    const orders = await Order.find({ userId: { $in: buyerIds } })
       .populate("sellerIds", "name")
+      .select("_id totalAmount status orderDate")
       .lean();
 
-    const detailedOrders = await Promise.all(
-      orders.map(async (order) => {
-        const purchasedItems = await Purchased.find({ orderId: order._id })
-          .populate({
-            path: "productId",
-            select: "name description price image",
-          })
-          .lean();
+    res.status(200).send({ isSuccess: true, orders });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ isSuccess: false, message: "Server Error" });
+  }
+};
 
-        return { ...order, purchasedItems };
+exports.getOrder = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const order = await Order.findById(orderId)
+      .populate("sellerIds", "name")
+      .lean();
+    if (!order) {
+      return res
+        .status(404)
+        .send({ isSuccess: false, message: "Order not found" });
+    }
+
+    const purchasedItems = await Purchased.find({ orderId: order._id })
+      .populate({
+        path: "productId",
+        select: "name description price image",
       })
-    );
+      .lean();
 
-    res.status(200).send({ isSuccess: true, orders: detailedOrders });
+    res
+      .status(200)
+      .send({ isSuccess: true, order: { ...order, purchasedItems } });
   } catch (error) {
     console.error(error);
     res.status(500).send({ isSuccess: false, message: "Server Error" });
