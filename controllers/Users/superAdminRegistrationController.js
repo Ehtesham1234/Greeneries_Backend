@@ -55,7 +55,7 @@ exports.userRegistration = async (req, res, nex) => {
     }
 
     const roleObject = await Role.findOne({ id: 1 });
-    console.log("roleObject", roleObject);
+    // console.log("roleObject", roleObject);
 
     // Hash password
     const salt = await bcrypt.genSalt(10);
@@ -129,7 +129,7 @@ exports.userSignIn = async (req, res, nex) => {
       .status(201)
       .json({ message: "Success", data: userWithoutPassword });
   } catch (err) {
-    console.log(err);
+    // console.log(err);
     res.status(500).json({ message: "Server error" });
   }
 };

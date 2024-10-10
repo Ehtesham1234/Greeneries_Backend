@@ -32,7 +32,7 @@ transporter.use("compile", hbs(handlebarsOptions));
 
 // mail sender
 const otpSender = async (identifier, otp, userName) => {
-  console.log("identifier", identifier);
+  // console.log("identifier", identifier);
   if (identifier?.includes("@")) {
     const mailOptions = {
       from: `"BlossyLeaf" <ehteshamscience12344321@gmail.com>`,

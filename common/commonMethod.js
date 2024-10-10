@@ -82,7 +82,7 @@ exports.mail = async (email, subject, data) => {
   };
   transporter.sendMail(mailOption, function (error, response) {
     if (error) {
-      console.log(error);
+      // console.log(error);
       return {
         mailSent: false,
         message: "Email not send",
@@ -119,10 +119,10 @@ exports.mailer = (email, subject, html) => {
 
   transporter.sendMail(mailOptions, function (error, info) {
     if (error) {
-      console.log(error);
+      // console.log(error);
       return error;
     } else {
-      console.log("Email sent: " + info.response);
+      // console.log("Email sent: " + info.response);
       return info.response;
     }
   });
@@ -242,7 +242,7 @@ exports.adminTokenValidate = async (token) => {
     if (decoded != null) {
       //#region Check Admin
       const userDetail = await User.findOne({ _id: decoded.id });
-      console.log("userDetail", userDetail);
+      // console.log("userDetail", userDetail);
       const userTypeDetail = await UserType.findOne({
         _id: userDetail.userTypeId,
       });
@@ -251,7 +251,7 @@ exports.adminTokenValidate = async (token) => {
       if (_.isEmpty(userTypeDetail) != true) {
         userType = userTypeDetail.userType;
       }
-      console.log("common userType===>", userType);
+      // console.log("common userType===>", userType);
       //#endregion
       if (userType != null) {
         if (userType === "admin" || userType === "superadmin") {

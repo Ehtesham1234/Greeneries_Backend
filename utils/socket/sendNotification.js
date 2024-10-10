@@ -16,7 +16,7 @@ exports.sendPushNotification = async (fcmToken, title, body, data) => {
     return;
   }
 
-  console.log("receiver, title, body, data", fcmToken, title, body, data);
+  // console.log("receiver, title, body, data", fcmToken, title, body, data);
 
   const message = {
     token: fcmToken,
@@ -30,11 +30,11 @@ exports.sendPushNotification = async (fcmToken, title, body, data) => {
     data: data, // Include the additional data here
   };
 
-  console.log("message", message);
+  // console.log("message", message);
 
   try {
     const response = await admin.messaging().send(message);
-    console.log("Successfully sent push notification:", response);
+    // console.log("Successfully sent push notification:", response);
   } catch (error) {
     console.error("Error sending push notification:", error);
   }

@@ -205,7 +205,7 @@ exports.getProducts = asyncHandler(async (req, res, next) => {
 exports.getProduct = asyncHandler(async (req, res) => {
   try {
     const productId = req.params.id;
-    console.log("productId", productId);
+    // console.log("productId", productId);
 
     const product = await Product.findById(productId).populate("seller");
     res
@@ -754,8 +754,8 @@ exports.removeFromWishlist = asyncHandler(async (req, res) => {
   const userId = req.user._id;
   const { productId } = req.body;
   let cart = await Cart.findOne({ userId });
-  console.log("userId", userId);
-  console.log("productId", productId);
+  // console.log("userId", userId);
+  // console.log("productId", productId);
   if (!cart) {
     throw new ApiError(404, "wishlist not found");
   }
@@ -839,7 +839,7 @@ exports.createBlog = asyncHandler(async (req, res) => {
           await unlinkAsync(tempFilePath);
         }
         res.status(500);
-        console.log("error", error);
+        // console.log("error", error);
         throw new ApiError(500, "Image could not be uploaded");
       }
     }
@@ -857,7 +857,7 @@ exports.createBlog = asyncHandler(async (req, res) => {
       .exec();
     res.status(201).json(new ApiResponse(201, populatedBlog));
   } catch (error) {
-    console.log("error", error);
+    // console.log("error", error);
     res.status(500).json(new ApiError(500, error.message));
   }
 });
@@ -1097,7 +1097,7 @@ exports.searchProducts = asyncHandler(async (req, res) => {
 //shops
 exports.getShops = asyncHandler(async (req, res) => {
   let { location, page = 1, limit = 10, maxDistance = 5000 } = req.query;
-  console.log("body", req.query);
+  // console.log("body", req.query);
 
   // Parse the query parameters as integers
   page = parseInt(page, 10);
@@ -1154,7 +1154,7 @@ exports.getShops = asyncHandler(async (req, res) => {
 exports.getShopProducts = asyncHandler(async (req, res) => {
   // const { id } = req.params;
   let { id, page = 1, limit = 10 } = req.query;
-  console.log("req.query", req.query);
+  // console.log("req.query", req.query);
 
   // Parse the query parameters as integers
   page = parseInt(page, 10);

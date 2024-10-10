@@ -8,13 +8,13 @@ const Message = require("../models/Message.models");
 const handleSocketConnection = (io) => {
   io.use(socketAuth());
   io.on("connection", (socket) => {
-    console.log(`New client connected: ${socket.id}`);
+    // console.log(`New client connected: ${socket.id}`);
 
     socket.on("join", (userId) => {
       try {
-        console.log(
-          `User ${userId} joined room ${userId} with socket ID ${socket.id}`
-        );
+        // console.log(
+        //   `User ${userId} joined room ${userId} with socket ID ${socket.id}`
+        // );
         socket.join(userId);
         socket.userId = userId; // Assign userId to socket
         // Emit online status to all connected clients
@@ -65,7 +65,7 @@ const handleSocketConnection = (io) => {
       });
     });
     socket.on("disconnect", (reason) => {
-      console.log(`Client disconnected: ${(reason, socket.id)}`);
+      // console.log(`Client disconnected: ${(reason, socket.id)}`);
       // Emit offline status to all connected clients
       if (socket.userId) {
         io.emit("onlineStatus", { userId: socket.userId, status: "offline" });

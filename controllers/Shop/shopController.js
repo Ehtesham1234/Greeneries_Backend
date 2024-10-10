@@ -35,7 +35,7 @@ exports.shopRegister = asyncHandler(async (req, res) => {
   }
   try {
     const { userName, phoneNumber, email, password } = req.body;
-    console.log("req", req.body);
+    // console.log("req", req.body);
 
     if (!userName) {
       throw new ApiError(400, "Validation Error", ["name is required"]);
@@ -107,12 +107,12 @@ exports.shopRegister = asyncHandler(async (req, res) => {
     }
 
     const roleObject = await Role.findOne({ id: 2 });
-    console.log("roleObject", roleObject);
+    // console.log("roleObject", roleObject);
 
     // Generate OTP and expiry time
     const otp = crypto.randomBytes(3).toString("hex");
     const otpExpiry = Date.now() + 300000; // OTP valid for 5 minutes
-    console.log("otp", otp);
+    // console.log("otp", otp);
 
     // Save user to database with status unverified
     const user = new User({
@@ -124,7 +124,7 @@ exports.shopRegister = asyncHandler(async (req, res) => {
       otpVerificationCode: otp,
       otpCodeExpiration: otpExpiry,
     });
-    console.log("user", user);
+    // console.log("user", user);
     if (email) {
       user.isEmailVerified = false;
     }
@@ -139,7 +139,7 @@ exports.shopRegister = asyncHandler(async (req, res) => {
     const createdUser = await User.findById(user._id).select(
       "-password -refreshToken"
     );
-    console.log("createdUser", createdUser);
+    // console.log("createdUser", createdUser);
     if (!createdUser) {
       throw new ApiError(
         500,
@@ -174,8 +174,8 @@ exports.shopVerification = asyncHandler(async (req, res, next) => {
     if (!user) {
       throw new ApiError(400, "User not found");
     }
-    console.log("user.role", user.role);
-    console.log("roleObject._id", roleObject._id);
+    // console.log("user.role", user.role);
+    // console.log("roleObject._id", roleObject._id);
     // Check if user autherized
     if (!user.role.equals(roleObject._id)) {
       throw new ApiError(400, "User not authorized");
@@ -294,7 +294,7 @@ exports.shopSignIn = asyncHandler(async (req, res, next) => {
     }
 
     const roleObject = await Role.findOne({ id: 2 });
-    console.log("roleObject", roleObject);
+    // console.log("roleObject", roleObject);
     // Check password
     const isPasswordValid = await user.isPasswordCorrect(password);
 
@@ -337,7 +337,7 @@ exports.shopSignIn = asyncHandler(async (req, res, next) => {
         )
       );
   } catch (err) {
-    console.log(err);
+    // console.log(err);
     res.status(500).json({ message: "Server error", error: err.message });
   }
 });
@@ -370,7 +370,7 @@ exports.logoutShop = asyncHandler(async (req, res) => {
 exports.refreshAccessToken = asyncHandler(async (req, res) => {
   const incomingRefreshToken =
     req.cookies.refreshToken || req.body.refreshToken;
-  console.log("incomingRefreshToken", incomingRefreshToken);
+  // console.log("incomingRefreshToken", incomingRefreshToken);
 
   if (!incomingRefreshToken) {
     throw new ApiError(401, "unauthorized request");
@@ -387,7 +387,7 @@ exports.refreshAccessToken = asyncHandler(async (req, res) => {
     if (!user) {
       throw new ApiError(401, "Invalid refresh token");
     }
-    console.log("user?.refreshToken", user?.refreshToken);
+    // console.log("user?.refreshToken", user?.refreshToken);
 
     if (incomingRefreshToken !== user?.refreshToken) {
       throw new ApiError(401, "Refresh token is expired or used");
@@ -397,17 +397,17 @@ exports.refreshAccessToken = asyncHandler(async (req, res) => {
       httpOnly: true,
       secure: true,
     };
-    console.log(process.env.REFRESH_TOKEN_SECRET);
-    console.log(process.env.ACCESS_TOKEN_SECRET);
-    console.log("incomingRefreshToken", incomingRefreshToken);
+    // console.log(process.env.REFRESH_TOKEN_SECRET);
+    // console.log(process.env.ACCESS_TOKEN_SECRET);
+    // console.log("incomingRefreshToken", incomingRefreshToken);
 
     const { accessToken, refreshToken } = await generateAccessAndRefereshTokens(
       user._id
     );
-    console.log("accessToken, refreshToken", {
-      accessToken,
-      refreshToken,
-    });
+    // console.log("accessToken, refreshToken", {
+    //   accessToken,
+    //   refreshToken,
+    // });
     user.isLoggedIn = true;
     user.refreshToken = refreshToken;
     await user.save();
@@ -511,7 +511,7 @@ exports.resetPassword = asyncHandler(async (req, res, next) => {
 exports.getShopDetails = asyncHandler(async (req, res) => {
   try {
     const user = req.user;
-    console.log("user", user);
+    // console.log("user", user);
 
     const foundUser = await User.findOne({ _id: user._id })
       .populate("role")
@@ -560,7 +560,7 @@ exports.createSellerProfile = asyncHandler(async (req, res) => {
       .status(201)
       .json(new ApiResponse(201, shop, "Seller profile created successfully"));
   } catch (error) {
-    console.log(err);
+    // console.log(err);
     res.status(500).json({ message: "Server error", error: err });
   }
 });
@@ -596,7 +596,7 @@ exports.updateSellerProfile = asyncHandler(async (req, res) => {
       .status(200)
       .json(new ApiResponse(200, shop, "Seller profile updated successfully"));
   } catch (error) {
-    console.log(error);
+    // console.log(error);
     res.status(500).json({ message: "Server error", error });
   }
 });
@@ -615,7 +615,7 @@ exports.getSellerProfile = asyncHandler(async (req, res) => {
         new ApiResponse(200, shop, "Seller profile retrieved successfully")
       );
   } catch (error) {
-    console.log(err);
+    // console.log(err);
     res.status(500).json({ message: "Server error", error: err });
   }
 });

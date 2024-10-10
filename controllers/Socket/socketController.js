@@ -55,7 +55,7 @@ exports.handleMessageEvent = (io, socket) => {
     async ({ text, sender, receiver, name, timestamp }) => {
       try {
         if (!text) throw new Error("Message text is required");
-        console.log("receiver", receiver);
+        // console.log("receiver", receiver);
 
         const newMessage = new Message({ text, sender, receiver, timestamp });
         await newMessage.save();
@@ -64,7 +64,7 @@ exports.handleMessageEvent = (io, socket) => {
         const isReceiverInChat =
           io.sockets.adapter.rooms.has(receiverRoom) &&
           io.sockets.adapter.rooms.get(receiverRoom).size > 0;
-        console.log("isReceiverInChat", isReceiverInChat);
+        // console.log("isReceiverInChat", isReceiverInChat);
         if (isReceiverInChat) {
           // Receiver is in chat, emit the message through socket only
           io.to(receiver).emit("message", JSON.stringify(newMessage));
@@ -94,7 +94,7 @@ exports.handleMessageEvent = (io, socket) => {
                 senderName: senderUser.userName,
               }
             );
-            console.log("Push notification sent");
+            // console.log("Push notification sent");
           } else {
             console.log(
               "Skipping push notification: FCM token missing for user",

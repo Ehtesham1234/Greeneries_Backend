@@ -402,7 +402,7 @@ async function processRowsProduct(fileRows, sellerId) {
         _id: { $in: categoryIds },
       });
 
-      console.log("categoryDocs", categoryDocs);
+      // console.log("categoryDocs", categoryDocs);
       if (categoryDocs.length !== categoryIds.length) {
         throw new ApiError(400, "One or more categories not found");
       }
@@ -460,7 +460,7 @@ async function processRowsProduct(fileRows, sellerId) {
         user: sellerId,
         name: { $regex: new RegExp(`^${name.trim()}$`, "i") },
       });
-      console.log("existingProduct", existingProduct);
+      // console.log("existingProduct", existingProduct);
 
       if (existingProduct) {
         // Update existing product
@@ -469,7 +469,7 @@ async function processRowsProduct(fileRows, sellerId) {
           productData,
           { new: true }
         );
-        console.log("updatedProduct", updatedProduct);
+        // console.log("updatedProduct", updatedProduct);
         products.push(updatedProduct);
       } else {
         // Create new product
@@ -479,7 +479,7 @@ async function processRowsProduct(fileRows, sellerId) {
       }
     }
 
-    console.log("products", products);
+    // console.log("products", products);
   } catch (error) {
     console.error("Error processing rows:", error);
     throw Error;
@@ -532,7 +532,7 @@ exports.addProductFromCsv = asyncHandler(async (req, res) => {
     fileRows = XLSX.utils.sheet_to_json(workbook.Sheets[sheet_name_list[0]]);
     fs.unlinkSync(req.file.path); // remove temp file
     await processRowsProduct(fileRows, sellerId);
-    console.log("fileRows", fileRows);
+    // console.log("fileRows", fileRows);
     res.status(200).send(new ApiResponse(200, "File uploaded successfully."));
   } else {
     throw new ApiError(404, "Only CSV and XLS files are acceptable");

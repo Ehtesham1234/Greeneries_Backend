@@ -2,7 +2,7 @@ const multer = require("multer");
 const fs = require("fs");
 const storage = multer.diskStorage({
   destination: function (req, file, callback) {
-    console.log("file.mimetype->", file.mimetype);
+    // console.log("file.mimetype->", file.mimetype);
     if (
       file.mimetype === "image/jpeg" ||
       file.mimetype === "image/jpg" ||

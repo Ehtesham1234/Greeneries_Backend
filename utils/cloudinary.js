@@ -29,7 +29,7 @@ exports.removeFromCloudinary = async (filePath) => {
     // Extract public ID from the file path
     const publicId = filePath.split("/").pop().split(".")[0];
     await cloudinary.uploader.destroy(publicId);
-    console.log(`Image ${publicId} removed from Cloudinary`);
+    // console.log(`Image ${publicId} removed from Cloudinary`);
   } catch (error) {
     console.error("Error removing image from Cloudinary:", error);
   }
