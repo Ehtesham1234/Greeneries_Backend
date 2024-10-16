@@ -16,6 +16,7 @@ const appRoute = require("./routes/App/appRoutes");
 const messageRoute = require("./routes/message/messageRoutes");
 const orderRoutes = require("./routes/Order/orderRoutes");
 const paymentRoutes = require("./routes/Payment/paymentRoutes");
+const shareRoutes = require("./routes/Share/shareRoutes");
 const cors = require("cors");
 const path = require("path");
 const passport = require("passport");
@@ -100,7 +101,7 @@ app.use("/google", oAuthRoutes.router);
 app.use("/api", messageRoute.router);
 app.use("/api", orderRoutes.router);
 app.use("/api", paymentRoutes.router);
-
+app.use("/share", shareRoutes.router);
 const io = new Server(server, {
   cors: {
     origin: "*",
