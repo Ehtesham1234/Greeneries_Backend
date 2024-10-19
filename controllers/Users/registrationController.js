@@ -1,5 +1,4 @@
 const User = require("../../models/User.models");
-const crypto = require("crypto");
 const { validationResult } = require("express-validator");
 const Role = require("../../models/roles/roles.models");
 // const Product = require("../../models/Product.models");
@@ -20,6 +19,10 @@ const { otpSender } = require("../../common/email");
 // const unlinkAsync = promisify(fs.unlink);
 // const fsExistsAsync = promisify(fs.exists);
 
+// Generate a numeric OTP (6 digits)
+const generateNumericOtp = () => {
+  return Math.floor(100000 + Math.random() * 900000).toString(); // Generates a 6-digit number
+};
 //refresh token
 const generateAccessAndRefereshTokens = async (userId) => {
   try {
@@ -74,7 +77,7 @@ exports.userRegistration = asyncHandler(async (req, res, nex) => {
       (phoneNumber && !existingUser.isPhoneVerified)
     ) {
       // Generate OTP and expiry time
-      const otp = crypto.randomBytes(3).toString("hex");
+      const otp = generateNumericOtp();
       const otpExpiry = Date.now() + 300000; // OTP valid for 5 minutes
 
       // Save user to database with status unverified
@@ -121,7 +124,7 @@ exports.userRegistration = asyncHandler(async (req, res, nex) => {
   // console.log("roleObject", roleObject);
 
   // Generate OTP and expiry time
-  const otp = crypto.randomBytes(3).toString("hex");
+  const otp = generateNumericOtp();
   const otpExpiry = Date.now() + 300000; // OTP valid for 5 minutes
 
   // Save user to database with status unverified
@@ -255,7 +258,7 @@ exports.userSignIn = asyncHandler(async (req, res, next) => {
     (phoneNumber && !user.isPhoneVerified)
   ) {
     // Generate OTP and expiry time
-    const otp = crypto.randomBytes(3).toString("hex");
+    const otp = generateNumericOtp();
     const otpExpiry = Date.now() + 300000; // OTP valid for 5 minutes
 
     // Save user to database with status unverified
@@ -451,7 +454,7 @@ exports.getPasswordResetOtp = asyncHandler(async (req, res, next) => {
   }
 
   // Generate OTP and expiry time
-  const otp = crypto.randomBytes(3).toString("hex");
+  const otp = generateNumericOtp();
   const otpExpiry = Date.now() + 300000; // OTP valid for 5 minutes
 
   // Save user to database with status unverified
