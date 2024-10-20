@@ -1019,18 +1019,13 @@ exports.searchProducts = asyncHandler(async (req, res) => {
     try {
       const plantDetails = await identifyPlantByImage(imageBase64);
       const plantSuggestions = plantDetails.results || [];
-
       if (plantSuggestions.length > 0) {
         const commonNames = plantSuggestions.flatMap(
           (s) => s.species.commonNames || []
         );
-
         const searchQuery = { $text: { $search: commonNames.join(" ") } };
-
         totalProducts = await Product.countDocuments(searchQuery);
-
         products = await Product.find(searchQuery).skip(skip).limit(limit);
-
         if (products.length === 0) {
           message = `No products found for common names: ${commonNames.join(
             ", "
@@ -1048,8 +1043,18 @@ exports.searchProducts = asyncHandler(async (req, res) => {
     // Step 2: Handle Text-based Search
     const searchTerms = query.trim().toLowerCase().split(/\s+/);
     console.log("searchTerms", searchTerms);
+    // Handle variations and typos
+    const regex = searchTerms.map(
+      (term) => new RegExp(term.replace(/\s+/g, ""), "i")
+    );
+    console.log("regex", regex);
     // Create a text search query
-    const textSearchQuery = { $text: { $search: searchTerms.join(" ") } };
+    const textSearchQuery = {
+      $or: [
+        { $text: { $search: searchTerms.join(" ") } },
+        { name: { $in: regex } },
+      ],
+    };
     console.log("textSearchQuery", textSearchQuery);
     // Get the total count of matching products
     totalProducts = await Product.countDocuments(textSearchQuery);
