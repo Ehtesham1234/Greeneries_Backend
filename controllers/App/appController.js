@@ -1001,19 +1001,64 @@ exports.getSavedBlogs = asyncHandler(async (req, res) => {
   }
 });
 
+//search
+const levenshteinDistance = (a, b) => {
+  if (a.length === 0) return b.length;
+  if (b.length === 0) return a.length;
+
+  const matrix = [];
+
+  for (let i = 0; i <= b.length; i++) {
+    matrix[i] = [i];
+  }
+
+  for (let j = 0; j <= a.length; j++) {
+    matrix[0][j] = j;
+  }
+
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j] + 1
+        );
+      }
+    }
+  }
+
+  return matrix[b.length][a.length];
+};
+
 //search by query or image
 exports.searchProducts = asyncHandler(async (req, res) => {
-  const { query, imageBase64 } = req.body;
+  const { query, imageBase64, page = 1, limit = 10 } = req.body;
+  const skip = (page - 1) * limit;
 
   if (!query && !imageBase64) {
     return res.status(400).json({ message: "Query or image is required" });
   }
 
-  // Helper function to create flexible regex
-  const createFlexibleRegex = (str) => {
-    const words = str.toLowerCase().split(/\s+/);
-    return new RegExp(words.map((word) => `(?=.*${word})`).join(""), "i");
+  // Helper function for fuzzy matching
+  const fuzzyMatch = (searchTerm, productName) => {
+    const searchWords = searchTerm.toLowerCase().split(/\s+/);
+    const productWords = productName.toLowerCase().split(/\s+/);
+
+    return searchWords.every((searchWord) =>
+      productWords.some(
+        (productWord) =>
+          levenshteinDistance(searchWord, productWord) <=
+          Math.floor(searchWord.length * 0.3)
+      )
+    );
   };
+
+  let products = [];
+  let totalProducts = 0;
+  let message = null;
 
   // Step 1: Handle Image Search
   if (imageBase64) {
@@ -1026,62 +1071,62 @@ exports.searchProducts = asyncHandler(async (req, res) => {
           (s) => s.species.commonNames || []
         );
 
-        // Create an array of flexible regexes for each common name
         const commonNameRegexes = commonNames.map(createFlexibleRegex);
 
-        // Search for products by each common name with flexible matching
-        const foundProducts = await Product.find({
+        totalProducts = await Product.countDocuments({
           name: { $in: commonNameRegexes },
-        }).limit(10);
+        });
 
-        if (foundProducts.length > 0) {
-          return res.status(200).json({ products: foundProducts });
-        } else {
-          return res.status(200).json({
-            products: [],
-            message: `No products found for common names: ${commonNames.join(
-              ", "
-            )}`,
-          });
+        products = await Product.find({
+          name: { $in: commonNameRegexes },
+        })
+          .skip(skip)
+          .limit(limit);
+
+        if (products.length === 0) {
+          message = `No products found for common names: ${commonNames.join(
+            ", "
+          )}`;
         }
       } else {
-        return res.status(200).json({
-          products: [],
-          message: "No common names identified from image",
-        });
+        message = "No common names identified from image";
       }
     } catch (error) {
       return res
         .status(404)
         .json({ message: "Error identifying plant by image" });
     }
+  } else {
+    // Step 2: Handle Text-based Search
+    const searchQuery = query.trim().toLowerCase();
+
+    // Find all products that match the query using fuzzy matching
+    const allProducts = await Product.find();
+    const matchedProducts = allProducts.filter((product) =>
+      fuzzyMatch(searchQuery, product.name)
+    );
+
+    totalProducts = matchedProducts.length;
+    products = matchedProducts.slice(skip, skip + limit);
+
+    if (products.length === 0) {
+      message = "No products found matching the search query";
+    }
   }
 
-  // Step 2: Handle Text-based Search
-  const searchQuery = query.trim();
-  console.log("searchQuery", searchQuery);
+  const totalPages = Math.ceil(totalProducts / limit);
+  const hasMore = page < totalPages;
 
-  const flexibleRegex = createFlexibleRegex(searchQuery);
-  console.log("flexibleRegex", flexibleRegex);
-
-  // Find matching categories based on query
-  const categories = await PlantCategory.find({
-    name: { $regex: flexibleRegex },
-  }).select("_id");
-
-  const categoryIds = categories.map((category) => category._id);
-
-  // Find products either by name or category with flexible matching
-  const products = await Product.find({
-    $or: [
-      { name: { $regex: flexibleRegex } },
-      { categories: { $in: categoryIds } },
-    ],
-  }).limit(10);
-
-  console.log("products", products);
-  return res.status(200).json({ products });
+  return res.status(200).json({
+    products,
+    page,
+    totalPages,
+    hasMore,
+    totalProducts,
+    message,
+  });
 });
+
 //shops
 exports.getShops = asyncHandler(async (req, res) => {
   let { location, page = 1, limit = 10, maxDistance = 5000 } = req.query;
