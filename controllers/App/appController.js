@@ -1039,21 +1039,15 @@ exports.searchProducts = asyncHandler(async (req, res) => {
         .json({ message: "Error identifying plant by image" });
     }
   } else {
-    // Handle Text-based Search
     const searchTerms = query.trim().toLowerCase().split(/\s+/);
-
-    // Combine text search with regex for name field
     console.log("searchTerms", searchTerms);
-    const regex = searchTerms.map(
-      (term) => new RegExp(term.replace(/\s+/g, ""), "i")
-    );
-    console.log("regex", regex);
-
-    // Create a search query
+    const regexArray = searchTerms.map((term) => new RegExp(term, "i"));
+    console.log("regexArray", regexArray);
+    // Constructing a more inclusive search query
     const textSearchQuery = {
       $or: [
         { $text: { $search: searchTerms.join(" ") } },
-        { name: { $regex: regex[0] } }, // Assumes single-term search
+        ...regexArray.map((regex) => ({ name: { $regex: regex } })),
       ],
     };
     console.log("textSearchQuery", textSearchQuery);
