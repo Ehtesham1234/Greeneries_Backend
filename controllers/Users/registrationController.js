@@ -1,23 +1,13 @@
 const User = require("../../models/User.models");
 const { validationResult } = require("express-validator");
 const Role = require("../../models/roles/roles.models");
-// const Product = require("../../models/Product.models");
-// const Shop = require("../../models/Shop.models");
-// const Cart = require("../../models/Cart.models");
-// const Buyer = require("../../models/Buyer.models");
-// const Blog = require("../../models/Blog.models");
+
 const jwt = require("jsonwebtoken");
 const { asyncHandler } = require("../../utils/asyncHandler");
 const { ApiError } = require("../../utils/ApiError");
 const { ApiResponse } = require("../../utils/ApiResponse");
 const { otpSender } = require("../../common/email");
-// const { uploadOnCloudinary } = require("../../utils/cloudinary");
-// const { promisify } = require("util");
-// const fs = require("fs");
-// const path = require("path");
-// const writeFileAsync = promisify(fs.writeFile);
-// const unlinkAsync = promisify(fs.unlink);
-// const fsExistsAsync = promisify(fs.exists);
+
 
 // Generate a numeric OTP (6 digits)
 const generateNumericOtp = () => {

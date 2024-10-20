@@ -30,7 +30,6 @@ router
   .get("/blogs", verifyUser, appController.getBlogs)
   .get("/blog/:id", verifyUser, appController.getBlog)
   .get("/blogs/user", verifyUser, appController.getBlogOfUser)
-  // .post("/blogs/:id/like", verifyUser, appController.likeBlog)
   .post("/blogs/:id/save", verifyUser, appController.saveBlog)
   .get("/blogs/liked", verifyUser, appController.getLikedBlogs)
   .get("/blogs/saved", verifyUser, appController.getSavedBlogs)

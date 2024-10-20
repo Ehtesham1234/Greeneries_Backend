@@ -3,7 +3,7 @@ const router = express.Router();
 const shopController = require("../../controllers/Shop/shopController");
 const { verifyToken } = require("../../middleware/validateToken.middleware");
 const verifyAdmin = verifyToken("admin");
-// const { upload } = require("../../middleware/multer.middleware");
+
 
 router.post("/shop/signup", shopController.shopRegister);
 router.post("/shop/verification", shopController.shopVerification);

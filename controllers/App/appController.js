@@ -931,33 +931,6 @@ exports.getBlogOfUser = asyncHandler(async (req, res) => {
   }
 });
 
-// exports.likeBlog = asyncHandler(async (req, res) => {
-//   try {
-//     const blog = await Blog.findById(req.params.id);
-//     if (!blog) {
-//       return res.status(404).json(new ApiError(404, "Blog not found"));
-//     }
-//     const userIndex = blog.likes.indexOf(req.user._id);
-//     if (userIndex === -1) {
-//       // Like the blog
-//       blog.likes.push(req.user._id);
-//       blog.likeCount += 1;
-//       req.user.likedBlogs.push(blog._id);
-//     } else {
-//       // Unlike the blog
-//       blog.likes.splice(userIndex, 1);
-//       blog.likeCount -= 1;
-//       const likedBlogIndex = req.user.likedBlogs.indexOf(blog._id);
-//       req.user.likedBlogs.splice(likedBlogIndex, 1);
-//     }
-//     await blog.save();
-//     await req.user.save();
-//     res.status(200).json(new ApiResponse(200, blog));
-//   } catch (error) {
-//     res.status(500).json(new ApiError(500, error.message));
-//   }
-// });
-
 exports.saveBlog = asyncHandler(async (req, res) => {
   try {
     const blog = await Blog.findById(req.params.id);
@@ -1027,11 +1000,9 @@ exports.getSavedBlogs = asyncHandler(async (req, res) => {
     res.status(500).json(new ApiError(500, error.message));
   }
 });
-
 //search by query or image
 exports.searchProducts = asyncHandler(async (req, res) => {
   const { query, imageBase64 } = req.body;
-  // console.log("imageBase64", imageBase64);
 
   if (!query && !imageBase64) {
     return res.status(400).json({ message: "Query or image is required" });
@@ -1048,9 +1019,13 @@ exports.searchProducts = asyncHandler(async (req, res) => {
           (s) => s.species.commonNames || []
         );
 
-        // Search for products by each common name
+        // Search for products by each common name with flexible spacing
         const foundProducts = await Product.find({
-          name: { $in: commonNames.map((name) => new RegExp(name, "i")) },
+          name: {
+            $in: commonNames.map(
+              (name) => new RegExp(name.split(/\s+/).join("\\s*"), "i")
+            ),
+          },
         }).limit(10);
 
         if (foundProducts.length > 0) {
@@ -1078,15 +1053,21 @@ exports.searchProducts = asyncHandler(async (req, res) => {
 
   // Step 2: Handle Text-based Search
   const searchQuery = query.trim();
+
+  // Regex to handle missing spaces (like 'aloe vera' vs 'aloevera')
+  const flexibleQuery = searchQuery.split(/\s+/).join("\\s*");
+
+  // Find matching categories based on query
   const categories = await PlantCategory.find({
     name: { $regex: searchQuery, $options: "i" },
   }).select("_id");
 
   const categoryIds = categories.map((category) => category._id);
 
+  // Find products either by name or category with flexible spacing
   const products = await Product.find({
     $or: [
-      { name: { $regex: searchQuery, $options: "i" } },
+      { name: { $regex: flexibleQuery, $options: "i" } }, // Handle flexible spacing
       { categories: { $in: categoryIds } },
     ],
   }).limit(10);
