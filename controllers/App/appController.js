@@ -1053,7 +1053,8 @@ exports.searchProducts = asyncHandler(async (req, res) => {
     const textSearchQuery = {
       $or: [
         { $text: { $search: searchTerms.join(" ") } },
-        { normalizedName: new RegExp(normalizedQuery, "i") },
+        { normalizedName: new RegExp(`^${normalizedQuery}`, "i") }, // Match start of name
+        { normalizedName: new RegExp(normalizedQuery, "i") }, // Match anywhere in name
       ],
     };
 
@@ -1067,21 +1068,32 @@ exports.searchProducts = asyncHandler(async (req, res) => {
             $add: [
               { $meta: "textScore" },
               {
-                $cond: {
-                  if: { $eq: ["$normalizedName", normalizedQuery] },
-                  then: 2,
-                  else: {
-                    $cond: {
-                      if: {
+                $switch: {
+                  branches: [
+                    {
+                      case: { $eq: ["$normalizedName", normalizedQuery] },
+                      then: 3,
+                    }, // Exact match
+                    {
+                      case: {
                         $regexMatch: {
                           input: "$normalizedName",
-                          regex: normalizedQuery,
+                          regex: new RegExp(`^${normalizedQuery}`, "i"),
+                        },
+                      },
+                      then: 2,
+                    }, // Starts with query
+                    {
+                      case: {
+                        $regexMatch: {
+                          input: "$normalizedName",
+                          regex: new RegExp(normalizedQuery, "i"),
                         },
                       },
                       then: 1,
-                      else: 0,
-                    },
-                  },
+                    }, // Contains query
+                  ],
+                  default: 0,
                 },
               },
             ],
