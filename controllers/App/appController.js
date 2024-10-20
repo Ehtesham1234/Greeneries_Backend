@@ -1053,10 +1053,10 @@ exports.searchProducts = asyncHandler(async (req, res) => {
 
   // Step 2: Handle Text-based Search
   const searchQuery = query.trim();
-
+  console.log("searchQuery", searchQuery);
   // Regex to handle missing spaces (like 'aloe vera' vs 'aloevera')
   const flexibleQuery = searchQuery.split(/\s+/).join("\\s*");
-
+  console.log("flexibleQuery", flexibleQuery);
   // Find matching categories based on query
   const categories = await PlantCategory.find({
     name: { $regex: searchQuery, $options: "i" },
@@ -1071,7 +1071,7 @@ exports.searchProducts = asyncHandler(async (req, res) => {
       { categories: { $in: categoryIds } },
     ],
   }).limit(10);
-
+  console.log("products", products);
   return res.status(200).json({ products });
 });
 
