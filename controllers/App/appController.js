@@ -1032,6 +1032,10 @@ const levenshteinDistance = (a, b) => {
 
   return matrix[b.length][a.length];
 };
+const createFlexibleRegex = (name) => {
+  const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(escapedName.split(/\s+/).join(".*"), "i");
+};
 
 //search by query or image
 exports.searchProducts = asyncHandler(async (req, res) => {
@@ -1099,16 +1103,21 @@ exports.searchProducts = asyncHandler(async (req, res) => {
   } else {
     // Step 2: Handle Text-based Search
     const searchQuery = query.trim().toLowerCase();
-
-    // Find all products that match the query using fuzzy matching
-    const allProducts = await Product.find();
-    const matchedProducts = allProducts.filter((product) =>
+    console.log("searchQuery", searchQuery);
+    // Create a case-insensitive regex for the search query
+    const searchRegex = new RegExp(searchQuery.split(/\s+/).join("|"), "i");
+    console.log("searchRegex", searchRegex);
+    // Find products that match the regex
+    const matchedProducts = await Product.find({ name: searchRegex });
+    console.log("matchedProducts", matchedProducts);
+    // Apply fuzzy matching to the results
+    const fuzzyMatchedProducts = matchedProducts.filter((product) =>
       fuzzyMatch(searchQuery, product.name)
     );
-
-    totalProducts = matchedProducts.length;
-    products = matchedProducts.slice(skip, skip + limit);
-
+    console.log("fuzzyMatchedProducts", fuzzyMatchedProducts);
+    totalProducts = fuzzyMatchedProducts.length;
+    products = fuzzyMatchedProducts.slice(skip, skip + limit);
+    console.log("products", products);
     if (products.length === 0) {
       message = "No products found matching the search query";
     }
