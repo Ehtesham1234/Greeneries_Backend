@@ -1039,20 +1039,17 @@ exports.searchProducts = asyncHandler(async (req, res) => {
         .json({ message: "Error identifying plant by image" });
     }
   } else {
-    let searchTerms = query.trim().toLowerCase().split(/\s+/);
-    // Handle concatenated terms
-    const concatenatedTerms = [query.replace(/\s+/g, "").toLowerCase()];
+    // Normalize query and product names
+    const normalizedQuery = query.replace(/\s+/g, "").toLowerCase();
 
-    // Merge regular and concatenated terms
-    searchTerms = [...searchTerms, ...concatenatedTerms];
-
-    // Create regex for both separated and concatenated terms
-    const regexArray = searchTerms.map((term) => new RegExp(term, "i"));
+    // Create regex for the normalized query
+    const regex = new RegExp(normalizedQuery, "i");
 
     const textSearchQuery = {
       $or: [
-        { $text: { $search: searchTerms.join(" ") } },
-        ...regexArray.map((regex) => ({ name: { $regex: regex } })),
+        { $text: { $search: query } },
+        { name: { $regex: regex } },
+        { description: { $regex: regex } },
       ],
     };
 
@@ -1070,7 +1067,7 @@ exports.searchProducts = asyncHandler(async (req, res) => {
                   if: {
                     $regexMatch: {
                       input: { $toLower: "$name" },
-                      regex: searchTerms.join("|"),
+                      regex: normalizedQuery,
                     },
                   },
                   then: 2,
