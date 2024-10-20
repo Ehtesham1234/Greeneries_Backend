@@ -1022,7 +1022,15 @@ exports.searchProducts = asyncHandler(async (req, res) => {
         const commonNames = plantSuggestions.flatMap(
           (s) => s.species.commonNames || []
         );
-        const searchQuery = { $text: { $search: commonNames.join(" ") } };
+        const normalizedNames = commonNames.map((name) =>
+          name.toLowerCase().replace(/\s+/g, "")
+        );
+        const searchQuery = {
+          $or: [
+            { normalizedName: { $in: normalizedNames } },
+            { $text: { $search: commonNames.join(" ") } },
+          ],
+        };
         totalProducts = await Product.countDocuments(searchQuery);
         products = await Product.find(searchQuery).skip(skip).limit(limit);
         if (products.length === 0) {
@@ -1039,17 +1047,13 @@ exports.searchProducts = asyncHandler(async (req, res) => {
         .json({ message: "Error identifying plant by image" });
     }
   } else {
-    // Normalize query and product names
-    const normalizedQuery = query.replace(/\s+/g, "").toLowerCase();
-
-    // Create regex for the normalized query
-    const regex = new RegExp(normalizedQuery, "i");
+    const searchTerms = query.trim().toLowerCase().split(/\s+/);
+    const normalizedQuery = searchTerms.join("");
 
     const textSearchQuery = {
       $or: [
-        { $text: { $search: query } },
-        { name: { $regex: regex } },
-        { description: { $regex: regex } },
+        { $text: { $search: searchTerms.join(" ") } },
+        { normalizedName: new RegExp(normalizedQuery, "i") },
       ],
     };
 
@@ -1064,14 +1068,20 @@ exports.searchProducts = asyncHandler(async (req, res) => {
               { $meta: "textScore" },
               {
                 $cond: {
-                  if: {
-                    $regexMatch: {
-                      input: { $toLower: "$name" },
-                      regex: normalizedQuery,
+                  if: { $eq: ["$normalizedName", normalizedQuery] },
+                  then: 2,
+                  else: {
+                    $cond: {
+                      if: {
+                        $regexMatch: {
+                          input: "$normalizedName",
+                          regex: normalizedQuery,
+                        },
+                      },
+                      then: 1,
+                      else: 0,
                     },
                   },
-                  then: 2,
-                  else: 0,
                 },
               },
             ],

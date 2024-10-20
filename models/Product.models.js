@@ -20,6 +20,10 @@ const ProductSchema = mongoose.Schema(
       required: [true, "Please add a name"],
       trim: true,
     },
+    normalizedName: {
+      type: String,
+      index: true, // This creates an index directly on the field
+    },
     sku: {
       type: String,
       required: true,
@@ -100,9 +104,13 @@ const ProductSchema = mongoose.Schema(
     timestamps: true,
   }
 );
-ProductSchema.index({
-  name: "text",
-  description: "text",
-  scientificName: "text",
+
+// Pre-save middleware to set normalizedName
+ProductSchema.pre("save", function (next) {
+  if (this.name) {
+    this.normalizedName = this.name.toLowerCase().replace(/\s+/g, "");
+  }
+  next();
 });
+
 module.exports = mongoose.model("Product", ProductSchema);
