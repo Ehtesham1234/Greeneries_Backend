@@ -1000,6 +1000,7 @@ exports.getSavedBlogs = asyncHandler(async (req, res) => {
     res.status(500).json(new ApiError(500, error.message));
   }
 });
+
 //search by query or image
 exports.searchProducts = asyncHandler(async (req, res) => {
   const { query, imageBase64 } = req.body;
@@ -1007,6 +1008,12 @@ exports.searchProducts = asyncHandler(async (req, res) => {
   if (!query && !imageBase64) {
     return res.status(400).json({ message: "Query or image is required" });
   }
+
+  // Helper function to create flexible regex
+  const createFlexibleRegex = (str) => {
+    const words = str.toLowerCase().split(/\s+/);
+    return new RegExp(words.map((word) => `(?=.*${word})`).join(""), "i");
+  };
 
   // Step 1: Handle Image Search
   if (imageBase64) {
@@ -1019,13 +1026,12 @@ exports.searchProducts = asyncHandler(async (req, res) => {
           (s) => s.species.commonNames || []
         );
 
-        // Search for products by each common name with flexible spacing
+        // Create an array of flexible regexes for each common name
+        const commonNameRegexes = commonNames.map(createFlexibleRegex);
+
+        // Search for products by each common name with flexible matching
         const foundProducts = await Product.find({
-          name: {
-            $in: commonNames.map(
-              (name) => new RegExp(name.split(/\s+/).join("\\s*"), "i")
-            ),
-          },
+          name: { $in: commonNameRegexes },
         }).limit(10);
 
         if (foundProducts.length > 0) {
@@ -1054,27 +1060,28 @@ exports.searchProducts = asyncHandler(async (req, res) => {
   // Step 2: Handle Text-based Search
   const searchQuery = query.trim();
   console.log("searchQuery", searchQuery);
-  // Regex to handle missing spaces (like 'aloe vera' vs 'aloevera')
-  const flexibleQuery = searchQuery.split(/\s+/).join("\\s*");
-  console.log("flexibleQuery", flexibleQuery);
+
+  const flexibleRegex = createFlexibleRegex(searchQuery);
+  console.log("flexibleRegex", flexibleRegex);
+
   // Find matching categories based on query
   const categories = await PlantCategory.find({
-    name: { $regex: searchQuery, $options: "i" },
+    name: { $regex: flexibleRegex },
   }).select("_id");
 
   const categoryIds = categories.map((category) => category._id);
 
-  // Find products either by name or category with flexible spacing
+  // Find products either by name or category with flexible matching
   const products = await Product.find({
     $or: [
-      { name: { $regex: flexibleQuery, $options: "i" } }, // Handle flexible spacing
+      { name: { $regex: flexibleRegex } },
       { categories: { $in: categoryIds } },
     ],
   }).limit(10);
+
   console.log("products", products);
   return res.status(200).json({ products });
 });
-
 //shops
 exports.getShops = asyncHandler(async (req, res) => {
   let { location, page = 1, limit = 10, maxDistance = 5000 } = req.query;
