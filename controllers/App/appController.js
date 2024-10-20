@@ -1014,7 +1014,6 @@ exports.searchProducts = asyncHandler(async (req, res) => {
   let totalProducts = 0;
   let message = null;
 
-  // Step 1: Handle Image Search
   if (imageBase64) {
     try {
       const plantDetails = await identifyPlantByImage(imageBase64);
@@ -1040,26 +1039,26 @@ exports.searchProducts = asyncHandler(async (req, res) => {
         .json({ message: "Error identifying plant by image" });
     }
   } else {
-    // Step 2: Handle Text-based Search
+    // Handle Text-based Search
     const searchTerms = query.trim().toLowerCase().split(/\s+/);
+
+    // Combine text search with regex for name field
     console.log("searchTerms", searchTerms);
-    // Handle variations and typos
     const regex = searchTerms.map(
       (term) => new RegExp(term.replace(/\s+/g, ""), "i")
     );
     console.log("regex", regex);
-    // Create a text search query
+
+    // Create a search query
     const textSearchQuery = {
       $or: [
         { $text: { $search: searchTerms.join(" ") } },
-        { name: { $in: regex } },
+        { name: { $regex: regex[0] } }, // Assumes single-term search
       ],
     };
     console.log("textSearchQuery", textSearchQuery);
-    // Get the total count of matching products
     totalProducts = await Product.countDocuments(textSearchQuery);
 
-    // Fetch matching products with custom scoring
     products = await Product.aggregate([
       { $match: textSearchQuery },
       {
