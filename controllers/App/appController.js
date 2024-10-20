@@ -1001,43 +1001,7 @@ exports.getSavedBlogs = asyncHandler(async (req, res) => {
   }
 });
 
-//search
-const levenshteinDistance = (a, b) => {
-  if (a.length === 0) return b.length;
-  if (b.length === 0) return a.length;
-
-  const matrix = [];
-
-  for (let i = 0; i <= b.length; i++) {
-    matrix[i] = [i];
-  }
-
-  for (let j = 0; j <= a.length; j++) {
-    matrix[0][j] = j;
-  }
-
-  for (let i = 1; i <= b.length; i++) {
-    for (let j = 1; j <= a.length; j++) {
-      if (b.charAt(i - 1) === a.charAt(j - 1)) {
-        matrix[i][j] = matrix[i - 1][j - 1];
-      } else {
-        matrix[i][j] = Math.min(
-          matrix[i - 1][j - 1] + 1,
-          matrix[i][j - 1] + 1,
-          matrix[i - 1][j] + 1
-        );
-      }
-    }
-  }
-
-  return matrix[b.length][a.length];
-};
-const createFlexibleRegex = (name) => {
-  const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(escapedName.split(/\s+/).join(".*"), "i");
-};
-
-//search by query or image
+// In your search function file
 exports.searchProducts = asyncHandler(async (req, res) => {
   const { query, imageBase64, page = 1, limit = 10 } = req.body;
   const skip = (page - 1) * limit;
@@ -1045,20 +1009,6 @@ exports.searchProducts = asyncHandler(async (req, res) => {
   if (!query && !imageBase64) {
     return res.status(400).json({ message: "Query or image is required" });
   }
-
-  // Helper function for fuzzy matching
-  const fuzzyMatch = (searchTerm, productName) => {
-    const searchWords = searchTerm.toLowerCase().split(/\s+/);
-    const productWords = productName.toLowerCase().split(/\s+/);
-
-    return searchWords.every((searchWord) =>
-      productWords.some(
-        (productWord) =>
-          levenshteinDistance(searchWord, productWord) <=
-          Math.floor(searchWord.length * 0.3)
-      )
-    );
-  };
 
   let products = [];
   let totalProducts = 0;
@@ -1075,17 +1025,11 @@ exports.searchProducts = asyncHandler(async (req, res) => {
           (s) => s.species.commonNames || []
         );
 
-        const commonNameRegexes = commonNames.map(createFlexibleRegex);
+        const searchQuery = { $text: { $search: commonNames.join(" ") } };
 
-        totalProducts = await Product.countDocuments({
-          name: { $in: commonNameRegexes },
-        });
+        totalProducts = await Product.countDocuments(searchQuery);
 
-        products = await Product.find({
-          name: { $in: commonNameRegexes },
-        })
-          .skip(skip)
-          .limit(limit);
+        products = await Product.find(searchQuery).skip(skip).limit(limit);
 
         if (products.length === 0) {
           message = `No products found for common names: ${commonNames.join(
@@ -1102,21 +1046,42 @@ exports.searchProducts = asyncHandler(async (req, res) => {
     }
   } else {
     // Step 2: Handle Text-based Search
-    const searchQuery = query.trim().toLowerCase();
-    console.log("searchQuery", searchQuery);
-    // Create a case-insensitive regex for the search query
-    const searchRegex = new RegExp(searchQuery.split(/\s+/).join("|"), "i");
-    console.log("searchRegex", searchRegex);
-    // Find products that match the regex
-    const matchedProducts = await Product.find({ name: searchRegex });
-    console.log("matchedProducts", matchedProducts);
-    // Apply fuzzy matching to the results
-    const fuzzyMatchedProducts = matchedProducts.filter((product) =>
-      fuzzyMatch(searchQuery, product.name)
-    );
-    console.log("fuzzyMatchedProducts", fuzzyMatchedProducts);
-    totalProducts = fuzzyMatchedProducts.length;
-    products = fuzzyMatchedProducts.slice(skip, skip + limit);
+    const searchTerms = query.trim().toLowerCase().split(/\s+/);
+    console.log("searchTerms", searchTerms);
+    // Create a text search query
+    const textSearchQuery = { $text: { $search: searchTerms.join(" ") } };
+    console.log("textSearchQuery", textSearchQuery);
+    // Get the total count of matching products
+    totalProducts = await Product.countDocuments(textSearchQuery);
+
+    // Fetch matching products with custom scoring
+    products = await Product.aggregate([
+      { $match: textSearchQuery },
+      {
+        $addFields: {
+          score: {
+            $add: [
+              { $meta: "textScore" },
+              {
+                $cond: {
+                  if: {
+                    $regexMatch: {
+                      input: { $toLower: "$name" },
+                      regex: searchTerms.join("|"),
+                    },
+                  },
+                  then: 2,
+                  else: 0,
+                },
+              },
+            ],
+          },
+        },
+      },
+      { $sort: { score: -1 } },
+      { $skip: skip },
+      { $limit: limit },
+    ]);
     console.log("products", products);
     if (products.length === 0) {
       message = "No products found matching the search query";
