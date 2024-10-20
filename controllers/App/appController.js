@@ -1039,18 +1039,23 @@ exports.searchProducts = asyncHandler(async (req, res) => {
         .json({ message: "Error identifying plant by image" });
     }
   } else {
-    const searchTerms = query.trim().toLowerCase().split(/\s+/);
-    console.log("searchTerms", searchTerms);
+    let searchTerms = query.trim().toLowerCase().split(/\s+/);
+    // Handle concatenated terms
+    const concatenatedTerms = [query.replace(/\s+/g, "").toLowerCase()];
+
+    // Merge regular and concatenated terms
+    searchTerms = [...searchTerms, ...concatenatedTerms];
+
+    // Create regex for both separated and concatenated terms
     const regexArray = searchTerms.map((term) => new RegExp(term, "i"));
-    console.log("regexArray", regexArray);
-    // Constructing a more inclusive search query
+
     const textSearchQuery = {
       $or: [
         { $text: { $search: searchTerms.join(" ") } },
         ...regexArray.map((regex) => ({ name: { $regex: regex } })),
       ],
     };
-    console.log("textSearchQuery", textSearchQuery);
+
     totalProducts = await Product.countDocuments(textSearchQuery);
 
     products = await Product.aggregate([
@@ -1080,7 +1085,7 @@ exports.searchProducts = asyncHandler(async (req, res) => {
       { $skip: skip },
       { $limit: limit },
     ]);
-    console.log("products", products);
+
     if (products.length === 0) {
       message = "No products found matching the search query";
     }
