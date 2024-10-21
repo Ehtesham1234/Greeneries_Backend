@@ -1002,6 +1002,97 @@ exports.getSavedBlogs = asyncHandler(async (req, res) => {
 });
 
 // In your search function file
+const handleImageSearch = async (imageBase64, skip, limit) => {
+  const plantDetails = await identifyPlantByImage(imageBase64);
+  const plantSuggestions = plantDetails.results || [];
+  if (plantSuggestions.length === 0) {
+    return { products: [], message: "No common names identified from image" };
+  }
+
+  const commonNames = plantSuggestions.flatMap(
+    (s) => s.species.commonNames || []
+  );
+  // console.log("commonNames", commonNames);
+  const normalizedNames = commonNames.map((name) =>
+    name.trim().toLowerCase().split(/\s+/)
+  );
+  // console.log("normalizedNames", normalizedNames);
+  const normalized = normalizedNames.flat().join(" ");
+  // console.log("normalized", normalized);
+  const searchQuery = {
+    $or: [
+      { $text: { $search: normalized } },
+      {
+        normalizedName: {
+          $in: normalizedNames.map((name) => new RegExp(name.join(""), "i")),
+        },
+      },
+    ],
+  };
+  // console.log("searchQuery", JSON.stringify(searchQuery, null, 2));
+  const totalProducts = await Product.countDocuments(searchQuery);
+  const products = await Product.find(searchQuery).skip(skip).limit(limit);
+
+  return {
+    products,
+    totalProducts,
+    message:
+      products.length === 0
+        ? `No products found for common names: ${commonNames.join(", ")}`
+        : null,
+  };
+};
+
+const handleTextSearch = async (query, skip, limit) => {
+  // Normalize the query by trimming, lowercasing, and removing extra spaces
+  const searchTerms = query.trim().toLowerCase().split(/\s+/);
+  // console.log("searchTerms", searchTerms);
+  const normalizedQuery = searchTerms.join(""); // Join terms without spaces for normalizedName
+  // console.log("normalizedQuery", normalizedQuery);
+  // Find categories that match the query
+  const categories = await PlantCategory.find({
+    name: query.trim(), // Case-insensitive search for categories
+  }).select("_id");
+  // console.log("categories", categories);
+  let searchQuery;
+  let sort = {};
+
+  if (categories.length > 0) {
+    // If category matches are found, search by category ID
+    searchQuery = { categories: { $in: categories.map((c) => c._id) } };
+    sort = { name: 1 }; // Sort by name for category searches
+  } else {
+    // If no categories are found, search by text or normalizedName
+    searchQuery = {
+      $or: [
+        { $text: { $search: searchTerms.join(" ") } }, // Full-text search on normalizedName
+        { normalizedName: new RegExp(`^${normalizedQuery}`, "i") }, // Partial matches for normalizedName
+      ],
+    };
+    sort = { normalizedName: 1 };
+  }
+
+  // console.log("searchQuery", searchQuery);
+
+  // Count total products matching the query
+  const totalProducts = await Product.countDocuments(searchQuery);
+
+  // Fetch products based on the query, applying sorting, skipping, and limiting for pagination
+  const products = await Product.find(searchQuery)
+    .sort(sort)
+    .skip(skip)
+    .limit(limit);
+  // console.log("products", products);
+  return {
+    products,
+    totalProducts,
+    message:
+      products.length === 0
+        ? "No products found matching the search query"
+        : null,
+  };
+};
+
 exports.searchProducts = asyncHandler(async (req, res) => {
   const { query, imageBase64, page = 1, limit = 10 } = req.body;
   const skip = (page - 1) * limit;
@@ -1010,126 +1101,14 @@ exports.searchProducts = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: "Query or image is required" });
   }
 
-  let products = [];
-  let totalProducts = 0;
-  let message = null;
-
+  let result;
   if (imageBase64) {
-    try {
-      const plantDetails = await identifyPlantByImage(imageBase64);
-      const plantSuggestions = plantDetails.results || [];
-      if (plantSuggestions.length > 0) {
-        const commonNames = plantSuggestions.flatMap(
-          (s) => s.species.commonNames || []
-        );
-        const normalizedNames = commonNames.map((name) =>
-          name.trim().toLowerCase().split(/\s+/)
-        );
-
-        const normalized = normalizedNames.join(" ");
-        console.log("commonNames", commonNames);
-        const searchQuery = {
-          $or: [
-            { $text: { $search: normalized } },
-            { normalizedName: new RegExp(`^${normalized}`, "i") }, // Match start of name
-            { normalizedName: new RegExp(normalized, "i") }, // Match anywhere in name
-            { normalizedName: { $in: normalizedNames } },
-          ],
-        };
-        console.log("searchQuery", searchQuery);
-        totalProducts = await Product.countDocuments(searchQuery);
-        console.log("totalProducts", totalProducts);
-        products = await Product.find(searchQuery).skip(skip).limit(limit);
-        if (products.length === 0) {
-          message = `No products found for common names: ${commonNames.join(
-            ", "
-          )}`;
-        }
-      } else {
-        message = "No common names identified from image";
-      }
-    } catch (error) {
-      return res
-        .status(404)
-        .json({ message: "Error identifying plant by image" });
-    }
+    result = await handleImageSearch(imageBase64, skip, limit);
   } else {
-    const searchTerms = query.trim().toLowerCase().split(/\s+/);
-    const normalizedQuery = searchTerms.join("");
-
-    const searchQueryCategory = query.trim();
-    const categories = await PlantCategory.find({
-      name: { $regex: searchQueryCategory, $options: "i" },
-    }).select("_id");
-
-    const categoryIds = categories.map((category) => category._id);
-    if (categoryIds.length > 0) {
-      products = await Product.find({
-        $or: [{ categories: { $in: categoryIds } }],
-      })
-        .skip(skip)
-        .limit(limit);
-    } else {
-      const textSearchQuery = {
-        $or: [
-          { $text: { $search: searchTerms.join(" ") } },
-          { normalizedName: new RegExp(`^${normalizedQuery}`, "i") }, // Match start of name
-          { normalizedName: new RegExp(normalizedQuery, "i") }, // Match anywhere in name
-        ],
-      };
-
-      totalProducts = await Product.countDocuments(textSearchQuery);
-
-      products = await Product.aggregate([
-        { $match: textSearchQuery },
-        {
-          $addFields: {
-            score: {
-              $add: [
-                { $meta: "textScore" },
-                {
-                  $switch: {
-                    branches: [
-                      {
-                        case: { $eq: ["$normalizedName", normalizedQuery] },
-                        then: 3,
-                      }, // Exact match
-                      {
-                        case: {
-                          $regexMatch: {
-                            input: "$normalizedName",
-                            regex: new RegExp(`^${normalizedQuery}`, "i"),
-                          },
-                        },
-                        then: 2,
-                      }, // Starts with query
-                      {
-                        case: {
-                          $regexMatch: {
-                            input: "$normalizedName",
-                            regex: new RegExp(normalizedQuery, "i"),
-                          },
-                        },
-                        then: 1,
-                      }, // Contains query
-                    ],
-                    default: 0,
-                  },
-                },
-              ],
-            },
-          },
-        },
-        { $sort: { score: -1 } },
-        { $skip: skip },
-        { $limit: limit },
-      ]);
-    }
-
-    if (products.length === 0) {
-      message = "No products found matching the search query";
-    }
+    result = await handleTextSearch(query, skip, limit);
   }
+
+  const { products, totalProducts, message } = result;
 
   const totalPages = Math.ceil(totalProducts / limit);
   const hasMore = page < totalPages;
