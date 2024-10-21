@@ -1014,6 +1014,7 @@ exports.searchProducts = asyncHandler(async (req, res) => {
   let totalProducts = 0;
   let message = null;
 
+  // Image-based search logic
   if (imageBase64) {
     try {
       const plantDetails = await identifyPlantByImage(imageBase64);
@@ -1046,17 +1047,24 @@ exports.searchProducts = asyncHandler(async (req, res) => {
         .status(404)
         .json({ message: "Error identifying plant by image" });
     }
-  } else {
+  }
+  // Text-based search logic
+  else {
     const searchTerms = query.trim().toLowerCase().split(/\s+/);
     const normalizedQuery = searchTerms.join("");
 
-    const textSearchQuery = {
-      $or: [
-        { $text: { $search: searchTerms.join(" ") } },
-        { normalizedName: new RegExp(`^${normalizedQuery}`, "i") }, // Match start of name
-        { normalizedName: new RegExp(normalizedQuery, "i") }, // Match anywhere in name
-      ],
-    };
+    // Handle single-character or very short queries
+    const isShortQuery = normalizedQuery.length <= 2;
+
+    const textSearchQuery = isShortQuery
+      ? { normalizedName: new RegExp(`^${normalizedQuery}`, "i") } // Strict match at the start for short queries
+      : {
+          $or: [
+            { $text: { $search: searchTerms.join(" ") } },
+            { normalizedName: new RegExp(`^${normalizedQuery}`, "i") }, // Match start of name
+            { normalizedName: new RegExp(normalizedQuery, "i") }, // Fuzzy match anywhere in name
+          ],
+        };
 
     totalProducts = await Product.countDocuments(textSearchQuery);
 
@@ -1066,14 +1074,14 @@ exports.searchProducts = asyncHandler(async (req, res) => {
         $addFields: {
           score: {
             $add: [
-              { $meta: "textScore" },
+              { $meta: "textScore" }, // MongoDB text score for relevance
               {
                 $switch: {
                   branches: [
                     {
                       case: { $eq: ["$normalizedName", normalizedQuery] },
                       then: 3,
-                    }, // Exact match
+                    }, // Exact match gets the highest score
                     {
                       case: {
                         $regexMatch: {
@@ -1082,7 +1090,7 @@ exports.searchProducts = asyncHandler(async (req, res) => {
                         },
                       },
                       then: 2,
-                    }, // Starts with query
+                    }, // Matches that start with the query
                     {
                       case: {
                         $regexMatch: {
@@ -1091,7 +1099,7 @@ exports.searchProducts = asyncHandler(async (req, res) => {
                         },
                       },
                       then: 1,
-                    }, // Contains query
+                    }, // Matches anywhere in the name (fuzzy match)
                   ],
                   default: 0,
                 },
@@ -1100,7 +1108,7 @@ exports.searchProducts = asyncHandler(async (req, res) => {
           },
         },
       },
-      { $sort: { score: -1 } },
+      { $sort: { score: -1 } }, // Sort by score, prioritizing exact matches
       { $skip: skip },
       { $limit: limit },
     ]);
