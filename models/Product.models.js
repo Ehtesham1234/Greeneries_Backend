@@ -22,6 +22,7 @@ const ProductSchema = mongoose.Schema(
     },
     normalizedName: {
       type: String,
+      index: true, // This creates an index directly on the field
     },
     sku: {
       type: String,
@@ -111,6 +112,5 @@ ProductSchema.pre("save", function (next) {
   }
   next();
 });
-// Create the text index on normalizedName
 ProductSchema.index({ normalizedName: "text" });
 module.exports = mongoose.model("Product", ProductSchema);

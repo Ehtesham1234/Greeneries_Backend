@@ -1014,7 +1014,6 @@ exports.searchProducts = asyncHandler(async (req, res) => {
   let totalProducts = 0;
   let message = null;
 
-  // Image-based search logic
   if (imageBase64) {
     try {
       const plantDetails = await identifyPlantByImage(imageBase64);
@@ -1024,15 +1023,22 @@ exports.searchProducts = asyncHandler(async (req, res) => {
           (s) => s.species.commonNames || []
         );
         const normalizedNames = commonNames.map((name) =>
-          name.toLowerCase().replace(/\s+/g, "")
+          name.trim().toLowerCase().split(/\s+/)
         );
+
+        const normalized = normalizedNames.join(" ");
+        console.log("commonNames", commonNames);
         const searchQuery = {
           $or: [
+            { $text: { $search: normalized } },
+            { normalizedName: new RegExp(`^${normalized}`, "i") }, // Match start of name
+            { normalizedName: new RegExp(normalized, "i") }, // Match anywhere in name
             { normalizedName: { $in: normalizedNames } },
-            { $text: { $search: commonNames.join(" ") } },
           ],
         };
+        console.log("searchQuery", searchQuery);
         totalProducts = await Product.countDocuments(searchQuery);
+        console.log("totalProducts", totalProducts);
         products = await Product.find(searchQuery).skip(skip).limit(limit);
         if (products.length === 0) {
           message = `No products found for common names: ${commonNames.join(
@@ -1047,71 +1053,78 @@ exports.searchProducts = asyncHandler(async (req, res) => {
         .status(404)
         .json({ message: "Error identifying plant by image" });
     }
-  }
-  // Text-based search logic
-  else {
+  } else {
     const searchTerms = query.trim().toLowerCase().split(/\s+/);
     const normalizedQuery = searchTerms.join("");
 
-    // Handle single-character or very short queries
-    const isShortQuery = normalizedQuery.length <= 2;
+    const searchQueryCategory = query.trim();
+    const categories = await PlantCategory.find({
+      name: { $regex: searchQueryCategory, $options: "i" },
+    }).select("_id");
 
-    const textSearchQuery = isShortQuery
-      ? { normalizedName: new RegExp(`^${normalizedQuery}`, "i") } // Strict match at the start for short queries
-      : {
-          $or: [
-            { $text: { $search: searchTerms.join(" ") } },
-            { normalizedName: new RegExp(`^${normalizedQuery}`, "i") }, // Match start of name
-            { normalizedName: new RegExp(normalizedQuery, "i") }, // Fuzzy match anywhere in name
-          ],
-        };
+    const categoryIds = categories.map((category) => category._id);
+    if (categoryIds.length > 0) {
+      products = await Product.find({
+        $or: [{ categories: { $in: categoryIds } }],
+      })
+        .skip(skip)
+        .limit(limit);
+    } else {
+      const textSearchQuery = {
+        $or: [
+          { $text: { $search: searchTerms.join(" ") } },
+          { normalizedName: new RegExp(`^${normalizedQuery}`, "i") }, // Match start of name
+          { normalizedName: new RegExp(normalizedQuery, "i") }, // Match anywhere in name
+        ],
+      };
 
-    totalProducts = await Product.countDocuments(textSearchQuery);
+      totalProducts = await Product.countDocuments(textSearchQuery);
 
-    products = await Product.aggregate([
-      { $match: textSearchQuery },
-      {
-        $addFields: {
-          score: {
-            $add: [
-              { $meta: "textScore" }, // MongoDB text score for relevance
-              {
-                $switch: {
-                  branches: [
-                    {
-                      case: { $eq: ["$normalizedName", normalizedQuery] },
-                      then: 3,
-                    }, // Exact match gets the highest score
-                    {
-                      case: {
-                        $regexMatch: {
-                          input: "$normalizedName",
-                          regex: new RegExp(`^${normalizedQuery}`, "i"),
+      products = await Product.aggregate([
+        { $match: textSearchQuery },
+        {
+          $addFields: {
+            score: {
+              $add: [
+                { $meta: "textScore" },
+                {
+                  $switch: {
+                    branches: [
+                      {
+                        case: { $eq: ["$normalizedName", normalizedQuery] },
+                        then: 3,
+                      }, // Exact match
+                      {
+                        case: {
+                          $regexMatch: {
+                            input: "$normalizedName",
+                            regex: new RegExp(`^${normalizedQuery}`, "i"),
+                          },
                         },
-                      },
-                      then: 2,
-                    }, // Matches that start with the query
-                    {
-                      case: {
-                        $regexMatch: {
-                          input: "$normalizedName",
-                          regex: new RegExp(normalizedQuery, "i"),
+                        then: 2,
+                      }, // Starts with query
+                      {
+                        case: {
+                          $regexMatch: {
+                            input: "$normalizedName",
+                            regex: new RegExp(normalizedQuery, "i"),
+                          },
                         },
-                      },
-                      then: 1,
-                    }, // Matches anywhere in the name (fuzzy match)
-                  ],
-                  default: 0,
+                        then: 1,
+                      }, // Contains query
+                    ],
+                    default: 0,
+                  },
                 },
-              },
-            ],
+              ],
+            },
           },
         },
-      },
-      { $sort: { score: -1 } }, // Sort by score, prioritizing exact matches
-      { $skip: skip },
-      { $limit: limit },
-    ]);
+        { $sort: { score: -1 } },
+        { $skip: skip },
+        { $limit: limit },
+      ]);
+    }
 
     if (products.length === 0) {
       message = "No products found matching the search query";
