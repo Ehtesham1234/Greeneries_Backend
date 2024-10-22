@@ -1013,53 +1013,41 @@ const handleImageSearch = async (imageBase64, skip, limit) => {
   const commonNames = plantSuggestions.flatMap((s) => s.species.commonNames || []);
   console.log("commonNames", commonNames);
   
-  const normalizedNames = commonNames.map((name) =>
-    name.trim().toLowerCase().split(/\s+/)
+  // Normalize names to match database format (lowercase, no spaces)
+  const normalizedNames = commonNames.map(name => 
+    name.toLowerCase().replace(/\s+/g, "")
   );
   console.log("normalizedNames", normalizedNames);
   
-  const normalized = normalizedNames.flat().join(" ");
-  console.log("normalized", normalized);
-  
-  // Escaping special characters for regex
-  const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  
-  const regexNames = normalizedNames.map((nameArr) =>
-    new RegExp(escapeRegex(nameArr.join(" ")), "i")
-  );
-  
-  // Debug: Log the first regex pattern
-  console.log("First regex pattern:", regexNames[0]);
-  console.log("First regex pattern toString:", regexNames[0].toString());
-  
-  const regexQueryConditions = regexNames.map((regex) => ({
-    normalizedName: regex
+  // Create the search conditions
+  const searchConditions = normalizedNames.map(name => ({
+    normalizedName: name
   }));
   
-  // Debug: Log the first query condition
-  console.log("First query condition:", regexQueryConditions[0]);
+  // Add partial match conditions for better matching
+  const partialMatchConditions = normalizedNames.map(name => ({
+    normalizedName: {
+      $regex: name,
+      $options: 'i'
+    }
+  }));
   
   const searchQuery = {
     $or: [
-      { $text: { $search: normalized } },
-      ...regexQueryConditions
+      ...searchConditions,
+      ...partialMatchConditions,
+      {
+        $text: {
+          $search: commonNames.join(" ")
+        }
+      }
     ]
   };
   
-  // Debug: Log the complete query
-  console.log("Final searchQuery:", JSON.stringify(searchQuery, null, 2));
-  
-  // Debug: Try a direct regex search first
-  const sampleRegexSearch = await Product.findOne({ 
-    normalizedName: regexNames[0] 
-  });
-  console.log("Sample direct regex search result:", sampleRegexSearch);
+  console.log("Search query:", JSON.stringify(searchQuery, null, 2));
   
   const totalProducts = await Product.countDocuments(searchQuery);
-  console.log("Total matching products:", totalProducts);
-  
   const products = await Product.find(searchQuery).skip(skip).limit(limit);
-  console.log("Found products:", products);
   
   return {
     products,
