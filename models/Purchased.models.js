@@ -7,6 +7,13 @@ const purchasedSchema = new Schema({
   sellerIds: [{ type: Schema.Types.ObjectId, ref: "Shop", required: true }],
   quantity: { type: Number, required: true },
   price: { type: Number, required: true },
+  plantProgress: {
+    isPlant: { type: Boolean, default: false },
+    plantName: { type: String },
+    growthStage: { type: Number, default: 0 },
+    lastTaskCompleted: { type: Date },
+    tasksCompleted: { type: Number, default: 0 },
+  },
 });
 
 module.exports = mongoose.model("Purchased", purchasedSchema);

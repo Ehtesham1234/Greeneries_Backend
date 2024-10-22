@@ -41,6 +41,12 @@ async function confirmOrder(orderId) {
         sellerIds: [product.seller],
         quantity: orderItem.quantity,
         price: product.price,
+        plantProgress: {
+          isPlant: true,
+          plantName: product.name,
+          growthStage: 0,
+          tasksCompleted: 0,
+        },
       }).save({ session });
     }
 
