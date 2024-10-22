@@ -1005,14 +1005,17 @@ exports.getSavedBlogs = asyncHandler(async (req, res) => {
 const handleImageSearch = async (imageBase64, skip, limit) => {
   const plantDetails = await identifyPlantByImage(imageBase64);
   const plantSuggestions = plantDetails.results || [];
+
   if (plantSuggestions.length === 0) {
     return { products: [], message: "No common names identified from image" };
   }
 
-  const commonNames = plantSuggestions.flatMap((s) => s.species.commonNames || []);
+  const commonNames = plantSuggestions.flatMap(
+    (s) => s.species.commonNames || []
+  );
   console.log("commonNames", commonNames);
 
-  const normalizedNames = commonNames.map((name) => 
+  const normalizedNames = commonNames.map((name) =>
     name.trim().toLowerCase().split(/\s+/)
   );
   console.log("normalizedNames", normalizedNames);
@@ -1021,23 +1024,25 @@ const handleImageSearch = async (imageBase64, skip, limit) => {
   console.log("normalized", normalized);
 
   // Escaping special characters for regex
-  const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  
-  const regexNames = normalizedNames.map((nameArr) => 
-    new RegExp(escapeRegex(nameArr.join(" ")), "i")
+  const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+  // Create regex patterns for each complete common name, not individual words
+  const regexPatterns = commonNames.map(
+    (name) => new RegExp(escapeRegex(name.trim().toLowerCase()), "i")
   );
-  console.log("regexNames", regexNames);
+  console.log("regexPatterns", regexPatterns);
 
-  // Constructing $or query for regex-based matching
-  const regexQueryConditions = regexNames.map((regex) => ({
-    normalizedName: regex
+  // Constructing $or query with proper regex conditions
+  const regexQueryConditions = regexPatterns.map((regex) => ({
+    normalizedName: regex,
   }));
-
+  console.log("Sample regex condition:", regexQueryConditions[0]);
+  const sampleProduct = await Product.findOne({
+    normalizedName: regexNames[0],
+  });
+  console.log("Sample product match:", sampleProduct);
   const searchQuery = {
-    $or: [
-      { $text: { $search: normalized } },
-      ...regexQueryConditions // Spread regex conditions into the $or array
-    ]
+    $or: [{ $text: { $search: normalized } }, ...regexQueryConditions],
   };
   console.log("searchQuery", JSON.stringify(searchQuery, null, 2));
 
