@@ -1005,73 +1005,76 @@ exports.getSavedBlogs = asyncHandler(async (req, res) => {
 const handleImageSearch = async (imageBase64, skip, limit) => {
   const plantDetails = await identifyPlantByImage(imageBase64);
   const plantSuggestions = plantDetails.results || [];
-  
+
   if (plantSuggestions.length === 0) {
     return { products: [], message: "No common names identified from image" };
   }
-  
-  const commonNames = plantSuggestions.flatMap((s) => s.species.commonNames || []);
+
+  // Get common names and limit to first 5
+  const allCommonNames = plantSuggestions.flatMap(
+    (s) => s.species.commonNames || []
+  );
+  const commonNames = allCommonNames.slice(0, 5); // Limit to first 5 names
   console.log("commonNames", commonNames);
-  
+
   // Break down common names into searchable parts
-  const searchTerms = commonNames.flatMap(name => {
+  const searchTerms = commonNames.flatMap((name) => {
     // Split the name into individual words
     const words = name.split(/\s+/);
-    
+
     // Create variations of the search terms
     const variations = [
       // Full normalized name (e.g., "mintplant")
       name.toLowerCase().replace(/\s+/g, ""),
       // Individual words (e.g., "mint", "plant")
-      ...words.map(word => word.toLowerCase()),
+      ...words.map((word) => word.toLowerCase()),
       // Adjacent word pairs (e.g., "mintplant", "applemint")
-      ...words.slice(0, -1).map((word, i) => 
-        `${word}${words[i + 1]}`.toLowerCase()
-      )
+      ...words
+        .slice(0, -1)
+        .map((word, i) => `${word}${words[i + 1]}`.toLowerCase()),
     ];
-    
+
     return [...new Set(variations)]; // Remove duplicates
   });
-  
+
   const searchConditions = [
     // Exact matches
-    ...searchTerms.map(term => ({
-      normalizedName: term
+    ...searchTerms.map((term) => ({
+      normalizedName: term,
     })),
-    
+
     // Partial matches with word boundaries
-    ...searchTerms.map(term => ({
+    ...searchTerms.map((term) => ({
       normalizedName: {
-        $regex: `\\b${term.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}`,
-        $options: 'i'
-      }
+        $regex: `\\b${term.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&")}`,
+        $options: "i",
+      },
     })),
-    
+
     // Full text search on the original name
     {
       $text: {
-        $search: commonNames.join(" ")
-      }
-    }
+        $search: commonNames.join(" "),
+      },
+    },
   ];
-  
+
   const searchQuery = {
-    $or: searchConditions
+    $or: searchConditions,
   };
-  
+
   console.log("Search query:", JSON.stringify(searchQuery, null, 2));
-  
+
   const totalProducts = await Product.countDocuments(searchQuery);
-  const products = await Product.find(searchQuery)
-    .skip(skip)
-    .limit(limit);
-  
+  const products = await Product.find(searchQuery).skip(skip).limit(limit);
+
   return {
     products,
     totalProducts,
-    message: products.length === 0
-      ? `No products found for common names: ${commonNames.join(", ")}`
-      : null,
+    message:
+      products.length === 0
+        ? `No products found for common names: ${commonNames.join(", ")}`
+        : null,
   };
 };
 
