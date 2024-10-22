@@ -1013,23 +1013,35 @@ const handleImageSearch = async (imageBase64, skip, limit) => {
     (s) => s.species.commonNames || []
   );
   console.log("commonNames", commonNames);
+
   const normalizedNames = commonNames.map((name) =>
     name.trim().toLowerCase().split(/\s+/)
   );
   console.log("normalizedNames", normalizedNames);
+
   const normalized = normalizedNames.flat().join(" ");
   console.log("normalized", normalized);
+
+  // Escaping special characters for regex
+  const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+  const regexNames = normalizedNames.map(
+    (nameArr) => new RegExp(escapeRegex(nameArr.join(" ")), "i")
+  );
+  console.log("regexNames", regexNames);
+
   const searchQuery = {
     $or: [
       { $text: { $search: normalized } },
       {
         normalizedName: {
-          $in: normalizedNames.map((name) => new RegExp(name.join(""), "i")),
+          $in: regexNames, // Using the improved regex here
         },
       },
     ],
   };
   console.log("searchQuery", JSON.stringify(searchQuery, null, 2));
+
   const totalProducts = await Product.countDocuments(searchQuery);
   const products = await Product.find(searchQuery).skip(skip).limit(limit);
 
