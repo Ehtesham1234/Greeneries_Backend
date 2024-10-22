@@ -1005,57 +1005,68 @@ exports.getSavedBlogs = asyncHandler(async (req, res) => {
 const handleImageSearch = async (imageBase64, skip, limit) => {
   const plantDetails = await identifyPlantByImage(imageBase64);
   const plantSuggestions = plantDetails.results || [];
-
+  
   if (plantSuggestions.length === 0) {
     return { products: [], message: "No common names identified from image" };
   }
-
-  const commonNames = plantSuggestions.flatMap(
-    (s) => s.species.commonNames || []
-  );
+  
+  const commonNames = plantSuggestions.flatMap((s) => s.species.commonNames || []);
   console.log("commonNames", commonNames);
-
+  
   const normalizedNames = commonNames.map((name) =>
     name.trim().toLowerCase().split(/\s+/)
   );
   console.log("normalizedNames", normalizedNames);
-
+  
   const normalized = normalizedNames.flat().join(" ");
   console.log("normalized", normalized);
-
+  
   // Escaping special characters for regex
-  const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
-  // Create regex patterns for each complete common name, not individual words
-  const regexPatterns = commonNames.map(
-    (name) => new RegExp(escapeRegex(name.trim().toLowerCase()), "i")
+  const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  
+  const regexNames = normalizedNames.map((nameArr) =>
+    new RegExp(escapeRegex(nameArr.join(" ")), "i")
   );
-  console.log("regexPatterns", regexPatterns);
-
-  // Constructing $or query with proper regex conditions
-  const regexQueryConditions = regexPatterns.map((regex) => ({
-    normalizedName: regex,
+  
+  // Debug: Log the first regex pattern
+  console.log("First regex pattern:", regexNames[0]);
+  console.log("First regex pattern toString:", regexNames[0].toString());
+  
+  const regexQueryConditions = regexNames.map((regex) => ({
+    normalizedName: regex
   }));
-  console.log("Sample regex condition:", regexQueryConditions[0]);
-  const sampleProduct = await Product.findOne({
-    normalizedName: regexNames[0],
-  });
-  console.log("Sample product match:", sampleProduct);
+  
+  // Debug: Log the first query condition
+  console.log("First query condition:", regexQueryConditions[0]);
+  
   const searchQuery = {
-    $or: [{ $text: { $search: normalized } }, ...regexQueryConditions],
+    $or: [
+      { $text: { $search: normalized } },
+      ...regexQueryConditions
+    ]
   };
-  console.log("searchQuery", JSON.stringify(searchQuery, null, 2));
-
+  
+  // Debug: Log the complete query
+  console.log("Final searchQuery:", JSON.stringify(searchQuery, null, 2));
+  
+  // Debug: Try a direct regex search first
+  const sampleRegexSearch = await Product.findOne({ 
+    normalizedName: regexNames[0] 
+  });
+  console.log("Sample direct regex search result:", sampleRegexSearch);
+  
   const totalProducts = await Product.countDocuments(searchQuery);
+  console.log("Total matching products:", totalProducts);
+  
   const products = await Product.find(searchQuery).skip(skip).limit(limit);
-
+  console.log("Found products:", products);
+  
   return {
     products,
     totalProducts,
-    message:
-      products.length === 0
-        ? `No products found for common names: ${commonNames.join(", ")}`
-        : null,
+    message: products.length === 0
+      ? `No products found for common names: ${commonNames.join(", ")}`
+      : null,
   };
 };
 
