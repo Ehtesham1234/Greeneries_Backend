@@ -1012,13 +1012,13 @@ const handleImageSearch = async (imageBase64, skip, limit) => {
   const commonNames = plantSuggestions.flatMap(
     (s) => s.species.commonNames || []
   );
-  // console.log("commonNames", commonNames);
+  console.log("commonNames", commonNames);
   const normalizedNames = commonNames.map((name) =>
     name.trim().toLowerCase().split(/\s+/)
   );
-  // console.log("normalizedNames", normalizedNames);
+  console.log("normalizedNames", normalizedNames);
   const normalized = normalizedNames.flat().join(" ");
-  // console.log("normalized", normalized);
+  console.log("normalized", normalized);
   const searchQuery = {
     $or: [
       { $text: { $search: normalized } },
@@ -1029,7 +1029,7 @@ const handleImageSearch = async (imageBase64, skip, limit) => {
       },
     ],
   };
-  // console.log("searchQuery", JSON.stringify(searchQuery, null, 2));
+  console.log("searchQuery", JSON.stringify(searchQuery, null, 2));
   const totalProducts = await Product.countDocuments(searchQuery);
   const products = await Product.find(searchQuery).skip(skip).limit(limit);
 
