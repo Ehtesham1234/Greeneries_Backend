@@ -1005,6 +1005,7 @@ exports.getSavedBlogs = asyncHandler(async (req, res) => {
 const handleImageSearch = async (imageBase64, skip, limit) => {
   const plantDetails = await identifyPlantByImage(imageBase64);
   const plantSuggestions = plantDetails.results || [];
+
   if (plantSuggestions.length === 0) {
     return { products: [], message: "No common names identified from image" };
   }
@@ -1013,23 +1014,38 @@ const handleImageSearch = async (imageBase64, skip, limit) => {
     (s) => s.species.commonNames || []
   );
   // console.log("commonNames", commonNames);
+  // Normalize the names for text search and regex patterns
   const normalizedNames = commonNames.map((name) =>
     name.trim().toLowerCase().split(/\s+/)
   );
   // console.log("normalizedNames", normalizedNames);
+  // Flatten and join normalized common names for text search
   const normalized = normalizedNames.flat().join(" ");
   // console.log("normalized", normalized);
+  // Create regex patterns for more flexible name matching
+  const regexPatterns = commonNames.map((name) => {
+    const trimmedName = name.trim().toLowerCase();
+    return new RegExp(trimmedName.split(/\s+/).join(".*"), "i"); // 'mint' matches 'something mint'
+  });
+
+  // Combine both text search and regex-based matching for flexibility
   const searchQuery = {
     $or: [
-      { $text: { $search: normalized } },
+      { $text: { $search: normalized } }, // Full-text search
       {
         normalizedName: {
           $in: normalizedNames.map((name) => new RegExp(name.join(""), "i")),
         },
       },
+      {
+        normalizedName: {
+          $in: regexPatterns, // Regex matching for partial names
+        },
+      },
     ],
   };
-  // console.log("searchQuery", JSON.stringify(searchQuery, null, 2));
+
+  // Fetch matching products and count total results
   const totalProducts = await Product.countDocuments(searchQuery);
   const products = await Product.find(searchQuery).skip(skip).limit(limit);
 
@@ -1067,6 +1083,7 @@ const handleTextSearch = async (query, skip, limit) => {
       $or: [
         { $text: { $search: searchTerms.join(" ") } }, // Full-text search on normalizedName
         { normalizedName: new RegExp(`^${normalizedQuery}`, "i") }, // Partial matches for normalizedName
+        { normalizedName: new RegExp(normalizedQuery, "i") }, // Match anywhere in name
       ],
     };
     sort = { normalizedName: 1 };
