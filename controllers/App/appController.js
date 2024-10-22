@@ -1013,41 +1013,58 @@ const handleImageSearch = async (imageBase64, skip, limit) => {
   const commonNames = plantSuggestions.flatMap((s) => s.species.commonNames || []);
   console.log("commonNames", commonNames);
   
-  // Normalize names to match database format (lowercase, no spaces)
-  const normalizedNames = commonNames.map(name => 
-    name.toLowerCase().replace(/\s+/g, "")
-  );
-  console.log("normalizedNames", normalizedNames);
+  // Break down common names into searchable parts
+  const searchTerms = commonNames.flatMap(name => {
+    // Split the name into individual words
+    const words = name.split(/\s+/);
+    
+    // Create variations of the search terms
+    const variations = [
+      // Full normalized name (e.g., "mintplant")
+      name.toLowerCase().replace(/\s+/g, ""),
+      // Individual words (e.g., "mint", "plant")
+      ...words.map(word => word.toLowerCase()),
+      // Adjacent word pairs (e.g., "mintplant", "applemint")
+      ...words.slice(0, -1).map((word, i) => 
+        `${word}${words[i + 1]}`.toLowerCase()
+      )
+    ];
+    
+    return [...new Set(variations)]; // Remove duplicates
+  });
   
-  // Create the search conditions
-  const searchConditions = normalizedNames.map(name => ({
-    normalizedName: name
-  }));
-  
-  // Add partial match conditions for better matching
-  const partialMatchConditions = normalizedNames.map(name => ({
-    normalizedName: {
-      $regex: name,
-      $options: 'i'
+  const searchConditions = [
+    // Exact matches
+    ...searchTerms.map(term => ({
+      normalizedName: term
+    })),
+    
+    // Partial matches with word boundaries
+    ...searchTerms.map(term => ({
+      normalizedName: {
+        $regex: `\\b${term.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}`,
+        $options: 'i'
+      }
+    })),
+    
+    // Full text search on the original name
+    {
+      $text: {
+        $search: commonNames.join(" ")
+      }
     }
-  }));
+  ];
   
   const searchQuery = {
-    $or: [
-      ...searchConditions,
-      ...partialMatchConditions,
-      {
-        $text: {
-          $search: commonNames.join(" ")
-        }
-      }
-    ]
+    $or: searchConditions
   };
   
   console.log("Search query:", JSON.stringify(searchQuery, null, 2));
   
   const totalProducts = await Product.countDocuments(searchQuery);
-  const products = await Product.find(searchQuery).skip(skip).limit(limit);
+  const products = await Product.find(searchQuery)
+    .skip(skip)
+    .limit(limit);
   
   return {
     products,
