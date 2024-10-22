@@ -1009,12 +1009,10 @@ const handleImageSearch = async (imageBase64, skip, limit) => {
     return { products: [], message: "No common names identified from image" };
   }
 
-  const commonNames = plantSuggestions.flatMap(
-    (s) => s.species.commonNames || []
-  );
+  const commonNames = plantSuggestions.flatMap((s) => s.species.commonNames || []);
   console.log("commonNames", commonNames);
 
-  const normalizedNames = commonNames.map((name) =>
+  const normalizedNames = commonNames.map((name) => 
     name.trim().toLowerCase().split(/\s+/)
   );
   console.log("normalizedNames", normalizedNames);
@@ -1023,22 +1021,23 @@ const handleImageSearch = async (imageBase64, skip, limit) => {
   console.log("normalized", normalized);
 
   // Escaping special characters for regex
-  const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
-  const regexNames = normalizedNames.map(
-    (nameArr) => new RegExp(escapeRegex(nameArr.join(" ")), "i")
+  const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  
+  const regexNames = normalizedNames.map((nameArr) => 
+    new RegExp(escapeRegex(nameArr.join(" ")), "i")
   );
   console.log("regexNames", regexNames);
+
+  // Constructing $or query for regex-based matching
+  const regexQueryConditions = regexNames.map((regex) => ({
+    normalizedName: regex
+  }));
 
   const searchQuery = {
     $or: [
       { $text: { $search: normalized } },
-      {
-        normalizedName: {
-          $in: regexNames, // Using the improved regex here
-        },
-      },
-    ],
+      ...regexQueryConditions // Spread regex conditions into the $or array
+    ]
   };
   console.log("searchQuery", JSON.stringify(searchQuery, null, 2));
 
