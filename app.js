@@ -24,6 +24,8 @@ const { ApiError } = require("./utils/ApiError");
 const http = require("http");
 const { Server } = require("socket.io");
 const { handleSocketConnection } = require("./services/socket");
+const plantProgressRoutes = require("./routes/AfterPurchaseProgress/plantProgress");
+
 connectDB();
 //
 const app = express();
@@ -100,6 +102,7 @@ app.use("/api", messageRoute.router);
 app.use("/api", orderRoutes.router);
 app.use("/api", paymentRoutes.router);
 app.use("/share", shareRoutes.router);
+app.use("/api/plant-progress", plantProgressRoutes.router);
 const io = new Server(server, {
   cors: {
     origin: "*",
