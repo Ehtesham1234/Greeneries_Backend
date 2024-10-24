@@ -86,7 +86,7 @@ app.engine("handlebars", engine());
 app.set("view engine", "handlebars");
 // Set views directory
 app.set("views", path.join(__dirname, "views"));
-
+//notification daily for task
 //sales k trending k liye 24 hours cron
 // require("./services/cronJobs");
 

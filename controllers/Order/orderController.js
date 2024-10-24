@@ -68,15 +68,16 @@ exports.placeOrder = async (req, res) => {
     }
 
     await order.save({ session });
-
-    // Update cart (remove non-wishlist items)
-    cart.products = cart.products.filter((item) => item.isWishList);
+    // console.log("Cart found console 1:", JSON.stringify(cart, null, 2));
+    // Update cart
     await cart.save({ session });
-
+    // console.log("Cart found console 2:", JSON.stringify(cart, null, 2));
     await session.commitTransaction();
     session.endSession();
 
     if (paymentType === "Online") {
+      
+    // console.log("Cart found console 3:", JSON.stringify(cart, null, 2));
       res.status(200).send({
         isSuccess: true,
         order,
@@ -85,6 +86,8 @@ exports.placeOrder = async (req, res) => {
         currency: "INR",
       });
     } else {
+      
+    // console.log("Cart found console 4:", JSON.stringify(cart, null, 2));
       // For COD, confirm the order immediately
       await confirmOrder(order._id);
       res.status(200).send({ isSuccess: true, order });

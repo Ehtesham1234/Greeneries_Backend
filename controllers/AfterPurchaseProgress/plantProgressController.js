@@ -1,102 +1,188 @@
-const Purchased = require("../../models/Purchased.models");
-const User = require("../../models/User.models");
-const { GoogleGenerativeAI } = require("@google/generative-ai");
-const { sendPushNotification } = require("../../utils/socket/sendNotification");
+const { asyncHandler } = require("../../utils/asyncHandler");
+const { ApiError } = require("../../utils/ApiError");
+const { ApiResponse } = require("../../utils/ApiResponse");
+const plantService = require("../../services/plantService");
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-
-exports.getPlantProgress = async (req, res) => {
-  try {
-    const purchase = await Purchased.findOne({
-      _id: req.params.purchaseId,
-      "plantProgress.isPlant": true,
-    });
-    if (!purchase) {
-      return res.status(404).json({ error: "Plant purchase not found" });
-    }
-    res.json(purchase.plantProgress);
-  } catch (error) {
-    res.status(500).json({ error: "Failed to fetch plant progress" });
-  }
-};
-
-exports.getDailyTask = async (req, res) => {
-  try {
-    const purchase = await Purchased.findOne({
-      _id: req.params.purchaseId,
-      "plantProgress.isPlant": true,
-    });
-    if (!purchase) {
-      return res.status(404).json({ error: "Plant purchase not found" });
-    }
-
-    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
-    const prompt = `Generate a daily care instruction for a ${purchase.plantProgress.plantName} at growth stage ${purchase.plantProgress.growthStage}. Include information about watering, sunlight, and any special care needed. Keep the instruction concise and easy to follow.`;
-
-    const result = await model.generateContent(prompt);
-    const task = result.response.text();
-
-    res.json({ task });
-  } catch (error) {
-    res.status(500).json({ error: "Failed to generate daily task" });
-  }
-};
-
-exports.completeTask = async (req, res) => {
-  try {
-    const purchase = await Purchased.findOneAndUpdate(
-      { _id: req.params.purchaseId, "plantProgress.isPlant": true },
-      {
-        $inc: {
-          "plantProgress.tasksCompleted": 1,
-          "plantProgress.growthStage": 1,
-        },
-        "plantProgress.lastTaskCompleted": new Date(),
-      },
-      { new: true }
+exports.getInitialQuestions = asyncHandler(async (req, res) => {
+  res
+    .status(200)
+    .json(
+      new ApiResponse(
+        200,
+        plantService.INITIAL_ASSESSMENT_QUESTIONS,
+        "Assessment questions retrieved"
+      )
     );
-    if (!purchase) {
-      return res.status(404).json({ error: "Plant purchase not found" });
-    }
-    res.json(purchase.plantProgress);
-  } catch (error) {
-    res.status(500).json({ error: "Failed to update plant progress" });
+});
+
+exports.submitInitialAssessment = asyncHandler(async (req, res) => {
+  const { answers } = req.body;
+  const { purchaseId } = req.params;
+
+  if (!answers || !Array.isArray(answers)) {
+    throw new ApiError(400, "Invalid assessment answers");
   }
-};
 
-// // Cron job for daily notifications
-// const cron = require("node-cron");
+  const updatedPurchase = await plantService.handleInitialAssessment(
+    purchaseId,
+    answers
+  );
 
-// cron.schedule("0 9 * * *", async () => {
-//   try {
-//     const activePlantPurchases = await Purchased.find({
-//       "plantProgress.isPlant": true,
-//       "plantProgress.growthStage": { $lt: 10 }, // Assuming 10 is the maximum growth stage
-//     }).populate("orderId", "userId");
+  res
+    .status(200)
+    .json(
+      new ApiResponse(
+        200,
+        updatedPurchase.plantProgress,
+        "Assessment completed successfully"
+      )
+    );
+});
 
-//     for (const purchase of activePlantPurchases) {
-//       const user = await User.findById(purchase.orderId.userId).select(
-//         "fcmToken"
-//       );
-//       if (user && user.fcmToken) {
-//         const task = await generateDailyTask(purchase.plantProgress);
-//         await sendPushNotification(
-//           user.fcmToken,
-//           "Daily Plant Care Task",
-//           task,
-//           { purchaseId: purchase._id.toString() }
-//         );
-//       }
-//     }
-//   } catch (error) {
-//     console.error("Error in daily notification cron job:", error);
-//   }
-// });
+exports.getDailyTask = asyncHandler(async (req, res) => {
+  const { purchaseId } = req.params;
+  const purchase = await Purchased.findById(purchaseId);
 
-// async function generateDailyTask(plantProgress) {
-//   const model = genAI.getGenerativeModel({ model: "gemini-pro" });
-//   const prompt = `Generate a daily care instruction for a ${plantProgress.plantName} at growth stage ${plantProgress.growthStage}. Include information about watering, sunlight, and any special care needed. Keep the instruction concise and easy to follow.`;
+  if (!purchase) {
+    throw new ApiError(404, "Plant purchase not found");
+  }
 
-//   const result = await model.generateContent(prompt);
-//   return result.response.text();
-// }
+  if (!purchase.plantProgress.assessmentComplete) {
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          { needsAssessment: true },
+          "Initial assessment required"
+        )
+      );
+  }
+
+  const task = await plantService.generateDailyTaskIfNone(
+    purchase.plantProgress
+  );
+
+  if (!task) {
+    return res
+      .status(200)
+      .json(new ApiResponse(200, null, "Task already generated for today"));
+  }
+
+  // Save the task in care history
+  const updatedPurchase = await Purchased.findByIdAndUpdate(
+    purchaseId,
+    {
+      $push: {
+        "plantProgress.careHistory": {
+          task,
+          growthStage: purchase.plantProgress.growthStage,
+        },
+      },
+      $set: {
+        "plantProgress.lastTaskCreated": new Date(),
+      },
+    },
+    { new: true }
+  );
+
+  res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        task,
+        careHistory: updatedPurchase.plantProgress.careHistory,
+      },
+      "Daily task generated"
+    )
+  );
+});
+
+exports.completeTask = asyncHandler(async (req, res) => {
+  const { purchaseId } = req.params;
+  const { taskId } = req.body;
+
+  const updatedPurchase = await plantService.completeTask(purchaseId, taskId);
+  if (!updatedPurchase) {
+    throw new ApiError(404, "Plant purchase or task not found");
+  }
+
+  // Check for growth milestones after task completion
+  await plantService.checkGrowthMilestones(updatedPurchase);
+
+  res
+    .status(200)
+    .json(
+      new ApiResponse(
+        200,
+        updatedPurchase.plantProgress,
+        "Task completed and progress updated"
+      )
+    );
+});
+
+exports.reportIssue = asyncHandler(async (req, res) => {
+  const { purchaseId } = req.params;
+  const { issue } = req.body;
+
+  if (!issue || typeof issue !== "string") {
+    throw new ApiError(400, "Invalid issue description");
+  }
+
+  const updatedPurchase = await plantService.reportIssue(purchaseId, issue);
+
+  res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        issues: updatedPurchase.plantProgress.issues,
+        needsAttention: updatedPurchase.plantProgress.needsAttention,
+      },
+      "Issue reported and solution generated"
+    )
+  );
+});
+
+exports.updatePlantHeight = asyncHandler(async (req, res) => {
+  const { purchaseId } = req.params;
+  const { height } = req.body;
+
+  if (typeof height !== "number" || height <= 0) {
+    throw new ApiError(400, "Invalid height measurement");
+  }
+
+  const updatedPurchase = await plantService.updatePlantHeight(
+    purchaseId,
+    height
+  );
+
+  res
+    .status(200)
+    .json(
+      new ApiResponse(
+        200,
+        updatedPurchase.plantProgress.heightProgress,
+        "Height updated successfully"
+      )
+    );
+});
+
+exports.getPlantProgress = asyncHandler(async (req, res) => {
+  const { purchaseId } = req.params;
+  const purchase = await Purchased.findById(purchaseId);
+
+  if (!purchase) {
+    throw new ApiError(404, "Plant purchase not found");
+  }
+
+  res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        ...purchase.plantProgress.toObject(),
+        assessmentNeeded: !purchase.plantProgress.assessmentComplete,
+      },
+      "Plant progress fetched"
+    )
+  );
+});

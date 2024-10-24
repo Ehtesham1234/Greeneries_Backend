@@ -1,6 +1,5 @@
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
-const { v4: uuidv4 } = require("uuid");
 const ObjectId = mongoose.Schema.ObjectId;
 
 const ReviewSchema = new Schema({

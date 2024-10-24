@@ -3,7 +3,7 @@ const Order = require("../../models/Order.models");
 const Cart = require("../../models/Cart.models");
 const Product = require("../../models/Product.models");
 const Purchased = require("../../models/Purchased.models");
-
+const Buyer = require("../../models/Buyer.models");
 const crypto = require("crypto");
 
 async function confirmOrder(orderId) {
@@ -69,11 +69,25 @@ exports.verifyPayment = async (req, res) => {
   if (generatedSignature === razorpaySignature) {
     try {
       const order = await Order.findOne({ razorpayOrderId });
+      const userId = order.userId;
+      const buyerId = await Buyer.findOne({ _id: userId }).select("user");
+      // console.log("Cart found console 4:", JSON.stringify(buyerId, null, 2));
+      const cart = await Cart.findOne({ userId: buyerId.user });
+      // console.log("Cart found console 5:", JSON.stringify(cart, null, 2));
       if (order) {
         await confirmOrder(order._id);
         order.razorpayPaymentId = razorpayPaymentId;
         order.razorpaySignature = razorpaySignature;
         await order.save();
+      }
+
+      if (cart) {
+        // console.log("Cart found console 6:", JSON.stringify(cart, null, 2));
+        // Update cart (remove non-wishlist items)
+        cart.products = cart.products.filter((item) => item.isWishList);
+        await cart.save();
+
+        // console.log("Cart found console 7:", JSON.stringify(cart, null, 2));
       }
       res.json({ success: true });
     } catch (error) {

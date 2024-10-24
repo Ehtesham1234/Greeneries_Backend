@@ -10,7 +10,6 @@ const {
   uploadOnCloudinary,
   removeFromCloudinary,
 } = require("../../utils/cloudinary");
-const { v4: uuidv4 } = require("uuid");
 const fs = require("fs");
 const path = require("path");
 const csv = require("csv-parser");
