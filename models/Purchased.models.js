@@ -28,6 +28,7 @@ const plantProgressSchema = new Schema({
   isPlant: { type: Boolean, default: false },
   plantName: { type: String },
   growthStage: { type: Number, default: 0 },
+  day: { type: Number, default: 0 },
   environment: { type: String },
   assessmentComplete: { type: Boolean, default: false },
   lastAssessment: { type: Date },

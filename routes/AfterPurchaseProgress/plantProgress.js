@@ -1,11 +1,16 @@
 const express = require("express");
 const router = express.Router();
-const plantProgressController = require("../../controllers/plantProgressController");
+const plantProgressController = require("../../controllers/AfterPurchaseProgress/plantProgressController");
 const { verifyToken } = require("../../middleware/validateToken.middleware");
 
 const verifyUser = verifyToken("user");
 
 router
+  .get(
+    "/purchased-products",
+    verifyUser,
+    plantProgressController.getPurchasedProducts
+  )
   .get("/assessment-questions", plantProgressController.getInitialQuestions)
   .post(
     "/assess/:purchaseId",

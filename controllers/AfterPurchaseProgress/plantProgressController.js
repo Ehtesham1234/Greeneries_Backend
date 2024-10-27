@@ -2,6 +2,36 @@ const { asyncHandler } = require("../../utils/asyncHandler");
 const { ApiError } = require("../../utils/ApiError");
 const { ApiResponse } = require("../../utils/ApiResponse");
 const plantService = require("../../services/plantService");
+const Purchased = require("../../models/Purchased.models");
+const Buyer = require("../../models/Buyer.models");
+const Order = require("../../models/Order.models");
+
+exports.getPurchasedProducts = asyncHandler(async (req, res) => {
+  // console.log(req.user);
+  const user = req.user;
+  const buyers = await Buyer.find({ user: user._id });
+  // console.log(buyers);
+  if (!buyers) {
+    throw new ApiError(404, "Buyers not found");
+  }
+  const orders = await Order.find({ userId: { $in: buyers } });
+  // console.log(orders);
+  const purchasedProducts = await Purchased.find({
+    orderId: { $in: orders },
+  })
+    .populate({ path: "productId", select: "name price description image" })
+    .select("productId quantity");
+  // console.log(purchasedProducts);
+  res
+    .status(200)
+    .json(
+      new ApiResponse(
+        200,
+        purchasedProducts,
+        "Purchased products retrieved successfully"
+      )
+    );
+});
 
 exports.getInitialQuestions = asyncHandler(async (req, res) => {
   res

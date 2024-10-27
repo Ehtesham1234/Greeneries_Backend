@@ -2,7 +2,9 @@ const Purchased = require("../models/Purchased.models");
 const Order = require("../models/Order.models");
 const User = require("../models/User.models");
 const { sendPushNotification } = require("../utils/socket/sendNotification");
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const GROWTH_STAGES = {
   SEEDLING: 0,
   VEGETATIVE: 1,
@@ -42,7 +44,51 @@ const STAGE_CHARACTERISTICS = {
       "Consider support structures",
     ],
   },
-  // Add characteristics for other stages...
+  [GROWTH_STAGES.MATURE]: {
+    name: "Mature",
+    characteristics: [
+      "Larger and more developed leaves",
+      "Strong, sturdy stem",
+      "Root system fully developed",
+      "Height 12-24 inches",
+    ],
+    careNeeds: [
+      "Deep watering as needed",
+      "Full light or filtered sunlight",
+      "Regular fertilizing",
+      "Pruning may be required",
+    ],
+  },
+  [GROWTH_STAGES.FLOWERING]: {
+    name: "Flowering",
+    characteristics: [
+      "Development of buds and flowers",
+      "Height may exceed 24 inches",
+      "Leaves may begin to reduce growth",
+      "Potential scent release",
+    ],
+    careNeeds: [
+      "Consistent watering",
+      "Full or partial light depending on species",
+      "Increase phosphorus in fertilizer",
+      "Support branches as needed",
+    ],
+  },
+  [GROWTH_STAGES.FRUITING]: {
+    name: "Fruiting",
+    characteristics: [
+      "Flowers transition into fruits",
+      "Height and size remain stable",
+      "Fruit ripening visible",
+      "Plant energy focused on fruit development",
+    ],
+    careNeeds: [
+      "Steady watering, especially during fruit formation",
+      "Continue light exposure",
+      "Fertilizer with potassium",
+      "Harvest fruits when ripe",
+    ],
+  },
 };
 
 const INITIAL_ASSESSMENT_QUESTIONS = [
@@ -93,14 +139,20 @@ const INITIAL_ASSESSMENT_QUESTIONS = [
     metadata: true,
   },
 ];
-
+function getGrowthStage(growthStage) {
+  // Taking the floor value of the growth stage
+  return Math.floor(growthStage);
+}
 const generateAIPrompt = (
   plantName,
   growthStage,
   environment,
   context = {}
 ) => {
-  const stageInfo = STAGE_CHARACTERISTICS[growthStage];
+  // console.log("generateAIPrompt", plantName, growthStage, environment, context);
+  const growthStageFloor = getGrowthStage(growthStage);
+  const stageInfo = STAGE_CHARACTERISTICS[growthStageFloor];
+  // console.log("stageInfo", stageInfo);
   const basePrompt = `
 Generate a detailed care instruction for a ${plantName} in the ${
     stageInfo.name
@@ -201,6 +253,24 @@ const handleInitialAssessment = async (purchaseId, assessmentAnswers) => {
     { new: true }
   );
 };
+const isTaskAlreadyGenerated = (plantProgress) => {
+  // Check if the plant already has a task generated for today
+  if (!plantProgress.careHistory || plantProgress.careHistory.length === 0) {
+    return false;
+  }
+
+  const lastTask =
+    plantProgress.careHistory[plantProgress.careHistory.length - 1];
+  const today = new Date();
+  const lastTaskDate = new Date(lastTask.createdAt);
+
+  // Compare if the last task was generated on the same day
+  return (
+    lastTaskDate.getDate() === today.getDate() &&
+    lastTaskDate.getMonth() === today.getMonth() &&
+    lastTaskDate.getFullYear() === today.getFullYear()
+  );
+};
 
 const generateDailyTaskIfNone = async (plantProgress) => {
   if (isTaskAlreadyGenerated(plantProgress)) {
@@ -240,7 +310,8 @@ const completeTask = async (purchaseId, taskId) => {
       },
       $inc: {
         "plantProgress.tasksCompleted": 1,
-        "plantProgress.growthStage": 0.2, // Incremental growth
+        "plantProgress.day": 1,
+        // "plantProgress.growthStage": 0.2, // Incremental growth
       },
     },
     { new: true }
@@ -274,7 +345,14 @@ const reportIssue = async (purchaseId, issueDescription) => {
 };
 
 const generateAISolutionForIssue = async (plantName, growthStage, issue) => {
-  const stageInfo = STAGE_CHARACTERISTICS[growthStage];
+  console.log(
+    "Generating AI solution for issue",
+    plantName,
+    growthStage,
+    issue
+  );
+  const adjustedGrowthStage = getGrowthStage(growthStage);
+  const stageInfo = STAGE_CHARACTERISTICS[adjustedGrowthStage];
   const model = genAI.getGenerativeModel({ model: "gemini-pro" });
 
   const prompt = `
@@ -310,7 +388,7 @@ const updatePlantHeight = async (purchaseId, height) => {
 
 const checkGrowthMilestones = async (purchase) => {
   const { growthStage, heightProgress } = purchase.plantProgress;
-
+  const adjustedGrowthStage = getGrowthStage(growthStage);
   // Check if height indicates need for stage progression
   if (heightProgress && heightProgress.length >= 2) {
     const recentHeight = heightProgress[heightProgress.length - 1].height;
