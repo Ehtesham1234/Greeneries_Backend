@@ -149,10 +149,9 @@ const generateAIPrompt = (
   environment,
   context = {}
 ) => {
-  // console.log("generateAIPrompt", plantName, growthStage, environment, context);
   const growthStageFloor = getGrowthStage(growthStage);
   const stageInfo = STAGE_CHARACTERISTICS[growthStageFloor];
-  // console.log("stageInfo", stageInfo);
+
   const basePrompt = `
 Generate a detailed care instruction for a ${plantName} in the ${
     stageInfo.name
@@ -168,17 +167,15 @@ ${stageInfo.careNeeds.map((c) => `- ${c}`).join("\n")}
 Additional Context:
 ${context.recentIssues ? `- Recent Issues: ${context.recentIssues}` : ""}
 ${context.lastTask ? `- Last Task Completed: ${context.lastTask}` : ""}
-${
-  context.weatherCondition
-    ? `- Weather Condition: ${context.weatherCondition}`
-    : ""
-}
 
-Please provide specific, actionable instructions that:
-1. Address the current growth stage needs
-2. Consider the growing environment
-3. Include any preventive measures
-4. Specify quantities and timing for care tasks
+Please provide exactly 5 specific, actionable tasks in the following format:
+1. [task description]
+2. [task description]
+3. [task description]
+4. [task description]
+5. [task description]
+
+Each task should be clear, concise, and independently completable.
 `;
 
   return basePrompt;
@@ -254,68 +251,86 @@ const handleInitialAssessment = async (purchaseId, assessmentAnswers) => {
   );
 };
 const isTaskAlreadyGenerated = (plantProgress) => {
-  // Check if the plant already has a task generated for today
-  if (!plantProgress.careHistory || plantProgress.careHistory.length === 0) {
-    return false;
-  }
+  const lastTaskDate = plantProgress.lastTaskCreated;
+  if (!lastTaskDate) return false;
 
-  const lastTask =
-    plantProgress.careHistory[plantProgress.careHistory.length - 1];
   const today = new Date();
-  const lastTaskDate = new Date(lastTask.createdAt);
-
-  // Compare if the last task was generated on the same day
   return (
     lastTaskDate.getDate() === today.getDate() &&
     lastTaskDate.getMonth() === today.getMonth() &&
     lastTaskDate.getFullYear() === today.getFullYear()
   );
 };
-
 const generateDailyTaskIfNone = async (plantProgress) => {
+  // Check for existing tasks today
   if (isTaskAlreadyGenerated(plantProgress)) {
-    return null;
+    return {
+      existingTasks: true,
+      tasks: plantProgress.currentTasks,
+    };
   }
 
-  // Get recent issues and last task for context
-  const recentIssues = plantProgress.issues
-    .filter((i) => !i.resolved)
-    .map((i) => i.issue)
-    .join(", ");
+  // Get context for new tasks
+  const context = {
+    recentIssues:
+      plantProgress.issues?.length > 0 ? plantProgress.issues[0].issue : null,
+    lastTask:
+      plantProgress.currentTasks?.length > 0
+        ? plantProgress.currentTasks[0].taskDescription
+        : null,
+  };
 
-  const lastTask =
-    plantProgress.careHistory.length > 0
-      ? plantProgress.careHistory[plantProgress.careHistory.length - 1].task
-      : null;
+  // Generate and parse new tasks
+  const aiResponse = await generateDailyTask(plantProgress, context);
+  const parsedTasks = parseDailyTasks(aiResponse);
 
-  const task = await generateDailyTask(plantProgress, {
-    recentIssues,
-    lastTask,
-  });
-
-  return task;
+  return {
+    existingTasks: false,
+    tasks: parsedTasks,
+  };
 };
 
 const completeTask = async (purchaseId, taskId) => {
-  return await Purchased.findOneAndUpdate(
+  // Find the purchase and update the specific task
+  const purchase = await Purchased.findOneAndUpdate(
     {
       _id: purchaseId,
-      "plantProgress.careHistory._id": taskId,
+      "plantProgress.currentTasks._id": taskId,
     },
     {
       $set: {
-        "plantProgress.careHistory.$.completed": true,
-        "plantProgress.careHistory.$.completedAt": new Date(),
-        "plantProgress.lastTaskCompleted": new Date(),
-      },
-      $inc: {
-        "plantProgress.tasksCompleted": 1,
-        "plantProgress.day": 1,
-        // "plantProgress.growthStage": 0.2, // Incremental growth
+        "plantProgress.currentTasks.$.completed": true,
+        "plantProgress.currentTasks.$.completedAt": new Date(),
       },
     },
     { new: true }
   );
+
+  if (!purchase) {
+    throw new Error("Purchase or task not found");
+  }
+
+  // Check if all current tasks are completed
+  const allTasksCompleted = purchase.plantProgress.currentTasks.every(
+    (task) => task.completed
+  );
+
+  if (allTasksCompleted) {
+    await Purchased.findOneAndUpdate(
+      { _id: purchaseId },
+      {
+        $inc: {
+          "plantProgress.tasksCompleted": 1,
+          "plantProgress.day": 1,
+        },
+        $set: {
+          "plantProgress.lastTaskCompleted": new Date(),
+        },
+      }
+    );
+  }
+
+  return purchase;
 };
 
 const reportIssue = async (purchaseId, issueDescription) => {
@@ -331,47 +346,80 @@ const reportIssue = async (purchaseId, issueDescription) => {
   return await Purchased.findOneAndUpdate(
     { _id: purchaseId },
     {
-      $push: {
-        "plantProgress.issues": {
-          issue: issueDescription,
-          solution,
-          growthStageWhenReported: purchase.plantProgress.growthStage,
-        },
+      $set: {
+        "plantProgress.issues": [
+          {
+            issue: issueDescription,
+            solution,
+            growthStageWhenReported: purchase.plantProgress.growthStage,
+            reportDate: new Date(),
+            resolved: false,
+          },
+        ],
+        "plantProgress.needsAttention": true,
       },
-      $set: { "plantProgress.needsAttention": true },
     },
     { new: true }
   );
 };
 
 const generateAISolutionForIssue = async (plantName, growthStage, issue) => {
-  console.log(
-    "Generating AI solution for issue",
-    plantName,
-    growthStage,
-    issue
-  );
   const adjustedGrowthStage = getGrowthStage(growthStage);
   const stageInfo = STAGE_CHARACTERISTICS[adjustedGrowthStage];
   const model = genAI.getGenerativeModel({ model: "gemini-pro" });
 
   const prompt = `
-Provide a detailed solution for the following plant issue:
+Provide a solution for the following plant issue:
 Plant: ${plantName}
 Growth Stage: ${stageInfo.name}
 Current Stage Characteristics: ${stageInfo.characteristics.join(", ")}
 Reported Issue: ${issue}
 
-Please provide:
-1. Diagnosis of the potential causes
-2. Step-by-step solution
-3. Preventive measures for the future
-4. Warning signs to watch for
-5. When to seek professional help if needed
+Please provide the solution in exactly 5 points:
+1. [Immediate action needed]
+2. [Root cause analysis]
+3. [Prevention steps]
+4. [Warning signs to watch]
+5. [Follow-up care]
+
+Make each point clear and actionable.
 `;
 
   const result = await model.generateContent(prompt);
-  return result.response.text();
+  const response = result.response.text();
+
+  // Parse the response into points
+  const points = response
+    .split("\n")
+    .filter((line) => line.trim().match(/^\d\./))
+    .map((line) => line.replace(/^\d\.\s*/, "").trim());
+
+  return points;
+};
+
+const parseDailyTasks = (aiResponse) => {
+  const tasks = aiResponse
+    .split("\n")
+    .filter((line) => /^\d\./.test(line.trim()))
+    .map((line) => ({
+      taskDescription: line.replace(/^\d\.\s*/, "").trim(),
+      completed: false,
+      completedAt: null,
+    }));
+
+  // Ensure we have exactly 5 tasks
+  if (tasks.length !== 5) {
+    // Create generic tasks if AI didn't provide exactly 5
+    return Array(5)
+      .fill(null)
+      .map((_, i) => ({
+        taskDescription: tasks[i]?.taskDescription || `Task ${i + 1}`,
+        completed: false,
+        completedAt: null,
+      }));
+  }
+
+  return tasks;
 };
 
 const updatePlantHeight = async (purchaseId, height) => {
@@ -388,7 +436,7 @@ const updatePlantHeight = async (purchaseId, height) => {
 
 const checkGrowthMilestones = async (purchase) => {
   const { growthStage, heightProgress } = purchase.plantProgress;
-  const adjustedGrowthStage = getGrowthStage(growthStage);
+
   // Check if height indicates need for stage progression
   if (heightProgress && heightProgress.length >= 2) {
     const recentHeight = heightProgress[heightProgress.length - 1].height;
@@ -396,7 +444,7 @@ const checkGrowthMilestones = async (purchase) => {
     const growthRate = (recentHeight - previousHeight) / previousHeight;
 
     if (growthRate > 0.2) {
-      // 20% growth
+      // 20% growth threshold
       await Purchased.findByIdAndUpdate(purchase._id, {
         $inc: { "plantProgress.growthStage": 1 },
       });
@@ -416,7 +464,6 @@ const checkGrowthMilestones = async (purchase) => {
     }
   }
 };
-
 module.exports = {
   GROWTH_STAGES,
   INITIAL_ASSESSMENT_QUESTIONS,

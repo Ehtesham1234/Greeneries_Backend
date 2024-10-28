@@ -89,55 +89,58 @@ exports.getDailyTask = asyncHandler(async (req, res) => {
       );
   }
 
-  const task = await plantService.generateDailyTaskIfNone(
-    purchase.plantProgress
-  );
+  try {
+    const taskResult = await plantService.generateDailyTaskIfNone(
+      purchase.plantProgress
+    );
 
-  if (!task) {
-    return res
-      .status(200)
-      .json(new ApiResponse(200, null, "Task already generated for today"));
-  }
+    if (taskResult.existingTasks) {
+      return res
+        .status(200)
+        .json(
+          new ApiResponse(
+            200,
+            taskResult.tasks,
+            "Retrieved today's existing tasks"
+          )
+        );
+    }
 
-  // Save the task in care history
-  const updatedPurchase = await Purchased.findByIdAndUpdate(
-    purchaseId,
-    {
-      $push: {
-        "plantProgress.careHistory": {
-          task,
-          growthStage: purchase.plantProgress.growthStage,
+    // Update with new tasks
+    const updatedPurchase = await Purchased.findByIdAndUpdate(
+      purchaseId,
+      {
+        $set: {
+          "plantProgress.currentTasks": taskResult.tasks,
+          "plantProgress.lastTaskCreated": new Date(),
         },
       },
-      $set: {
-        "plantProgress.lastTaskCreated": new Date(),
-      },
-    },
-    { new: true }
-  );
+      { new: true }
+    );
 
-  res.status(200).json(
-    new ApiResponse(
-      200,
-      {
-        task,
-        careHistory: updatedPurchase.plantProgress.careHistory,
-      },
-      "Daily task generated"
-    )
-  );
+    res.status(200).json(
+      new ApiResponse(
+        200,
+        {
+          tasks: taskResult.tasks,
+        },
+        "Daily tasks generated"
+      )
+    );
+  } catch (error) {
+    console.error("Task generation error:", error);
+    throw new ApiError(500, "Error generating daily tasks");
+  }
 });
-
 exports.completeTask = asyncHandler(async (req, res) => {
   const { purchaseId } = req.params;
   const { taskId } = req.body;
-
+  console.log(taskId);
   const updatedPurchase = await plantService.completeTask(purchaseId, taskId);
   if (!updatedPurchase) {
     throw new ApiError(404, "Plant purchase or task not found");
   }
 
-  // Check for growth milestones after task completion
   await plantService.checkGrowthMilestones(updatedPurchase);
 
   res
@@ -146,7 +149,7 @@ exports.completeTask = asyncHandler(async (req, res) => {
       new ApiResponse(
         200,
         updatedPurchase.plantProgress,
-        "Task completed and progress updated"
+        "Task progress updated"
       )
     );
 });

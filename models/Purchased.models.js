@@ -8,20 +8,18 @@ const plantAssessmentSchema = new Schema({
   assessmentDate: { type: Date, default: Date.now },
 });
 
+const taskSchema = new Schema({
+  taskDescription: { type: String, required: true },
+  completed: { type: Boolean, default: false },
+  completedAt: { type: Date },
+});
+
 const plantIssueSchema = new Schema({
   issue: { type: String, required: true },
   reportDate: { type: Date, default: Date.now },
-  solution: { type: String },
+  solution: [{ type: String }],
   resolved: { type: Boolean, default: false },
   growthStageWhenReported: { type: Number },
-});
-
-const dailyTaskSchema = new Schema({
-  task: { type: String, required: true },
-  createdAt: { type: Date, default: Date.now },
-  completedAt: { type: Date },
-  growthStage: { type: Number },
-  completed: { type: Boolean, default: false },
 });
 
 const plantProgressSchema = new Schema({
@@ -35,7 +33,7 @@ const plantProgressSchema = new Schema({
   lastTaskCompleted: { type: Date },
   tasksCompleted: { type: Number, default: 0 },
   lastTaskCreated: { type: Date },
-  careHistory: [dailyTaskSchema],
+  currentTasks: [taskSchema], // Replace careHistory with currentTasks
   issues: [plantIssueSchema],
   initialAssessment: [plantAssessmentSchema],
   heightProgress: [
