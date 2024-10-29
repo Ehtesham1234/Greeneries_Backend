@@ -46,9 +46,9 @@ exports.getInitialQuestions = asyncHandler(async (req, res) => {
 });
 
 exports.submitInitialAssessment = asyncHandler(async (req, res) => {
-  const { answers } = req.body;
+  const answers = req.body;
   const { purchaseId } = req.params;
-
+  // console.log(answers);
   if (!answers || !Array.isArray(answers)) {
     throw new ApiError(400, "Invalid assessment answers");
   }
