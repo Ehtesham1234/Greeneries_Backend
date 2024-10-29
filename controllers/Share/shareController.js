@@ -139,18 +139,6 @@ exports.share = asyncHandler(async (req, res) => {
           </style>
       </head>
       <body>
-        <script>
-            // Try to open the app directly
-            const appLink = '${
-              type === "product" ? "myapp://product/" : "myapp://blog/"
-            }${id}';
-            window.location.href = appLink;
-  
-            // Fallback to web after 2 seconds if app is not installed
-            setTimeout(() => {
-                window.location.href = '${url}';
-            }, 2000);
-        </script>
           <div class="container">
               <img class="icon" src="https://yourdomain.com/path-to-your-app-icon.png" alt="App Icon">
               <div class="title">${title}</div>
