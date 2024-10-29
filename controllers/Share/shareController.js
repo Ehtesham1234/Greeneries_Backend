@@ -38,7 +38,7 @@ exports.share = asyncHandler(async (req, res) => {
         product.image && product.image.length > 0
           ? product.image[0].filePath
           : "https://upload.wikimedia.org/wikipedia/commons/7/7c/Profile_avatar_placeholder_large.png";
-      url = `https://www.yourdomain.com/share/product/${product._id}`;
+      url = `https://greeneries-backend.onrender.com/share/product/${product._id}`;
       ogType = "product";
       additionalInfo = `Price: $${product.price}`;
     } else if (type === "blog") {
@@ -58,7 +58,7 @@ exports.share = asyncHandler(async (req, res) => {
         blog.image && blog.image.filePath
           ? blog.image.filePath
           : "https://via.placeholder.com/600x400.png?text=No+Image";
-      url = `https://www.yourdomain.com/share/blog/${blog._id}`;
+      url = `https://greeneries-backend.onrender.com/share/blog/${blog._id}`;
       ogType = "article";
       additionalInfo = `By ${blog.author.username}`;
     }
@@ -139,6 +139,18 @@ exports.share = asyncHandler(async (req, res) => {
           </style>
       </head>
       <body>
+        <script>
+            // Try to open the app directly
+            const appLink = '${
+              type === "product" ? "myapp://product/" : "myapp://blog/"
+            }${id}';
+            window.location.href = appLink;
+  
+            // Fallback to web after 2 seconds if app is not installed
+            setTimeout(() => {
+                window.location.href = '${url}';
+            }, 2000);
+        </script>
           <div class="container">
               <img class="icon" src="https://yourdomain.com/path-to-your-app-icon.png" alt="App Icon">
               <div class="title">${title}</div>
