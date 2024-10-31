@@ -153,6 +153,8 @@ const generateAIPrompt = (
   const stageInfo = STAGE_CHARACTERISTICS[growthStageFloor];
 
   const basePrompt = `
+Please provide the response in English.
+
 Generate a detailed care instruction for a ${plantName} in the ${
     stageInfo.name
   } stage.
@@ -168,7 +170,7 @@ Additional Context:
 ${context.recentIssues ? `- Recent Issues: ${context.recentIssues}` : ""}
 ${context.lastTask ? `- Last Task Completed: ${context.lastTask}` : ""}
 
-Please provide exactly 5 specific, actionable tasks in the following format:
+Please provide exactly 5 specific, actionable tasks in English in the following format:
 1. [task description]
 2. [task description]
 3. [task description]
