@@ -12,7 +12,6 @@ const base64ToBuffer = (base64Image) => {
 
 const identifyPlantByImage = async (imageBase64, organs = ["auto"]) => {
   try {
-    console.log("imageBase64", imageBase64);
     // Create a new FormData instance
     const form = new FormData();
 
@@ -33,7 +32,7 @@ const identifyPlantByImage = async (imageBase64, organs = ["auto"]) => {
       lang: "en",
       "api-key": apiKey,
     });
-
+    console.log("apiUrl", apiUrl);
     // Send the request to the Pl@ntNet API
     const response = await axios.post(
       `${apiUrl}?${queryParams.toString()}`,
@@ -49,13 +48,11 @@ const identifyPlantByImage = async (imageBase64, organs = ["auto"]) => {
     return response.data; // Return the API response data
   } catch (error) {
     if (error.response) {
-      console.error("Error[] ", error);
       console.error(
         "Error identifying plant by image data:",
         error.response.data
       );
     } else {
-      console.error("Error[] ", error);
       console.error("Error identifying plant by image message:", error.message);
     }
     throw new Error("Failed to identify plant", error);

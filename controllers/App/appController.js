@@ -1003,7 +1003,6 @@ exports.getSavedBlogs = asyncHandler(async (req, res) => {
 
 // In your search function file
 const handleImageSearch = async (imageBase64, skip, limit) => {
-  console.log("imageBase64 detected", imageBase64);
   const plantDetails = await identifyPlantByImage(imageBase64);
   const plantSuggestions = plantDetails.results || [];
 
