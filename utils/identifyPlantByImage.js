@@ -12,6 +12,7 @@ const base64ToBuffer = (base64Image) => {
 
 const identifyPlantByImage = async (imageBase64, organs = ["auto"]) => {
   try {
+    console.log("imageBase64", imageBase64);
     // Create a new FormData instance
     const form = new FormData();
 
@@ -43,6 +44,7 @@ const identifyPlantByImage = async (imageBase64, organs = ["auto"]) => {
         },
       }
     );
+    console.log("apiUrl", apiUrl);
 
     return response.data; // Return the API response data
   } catch (error) {
