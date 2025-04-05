@@ -47,11 +47,13 @@ const identifyPlantByImage = async (imageBase64, organs = ["auto"]) => {
     return response.data; // Return the API response data
   } catch (error) {
     if (error.response) {
+      console.error("Error[] ", error);
       console.error(
         "Error identifying plant by image data:",
         error.response.data
       );
     } else {
+      console.error("Error[] ", error);
       console.error("Error identifying plant by image message:", error.message);
     }
     throw new Error("Failed to identify plant", error);
